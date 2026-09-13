@@ -1,5 +1,5 @@
 import type { CardId, Rank } from '@cucumber/shared'
-import { cardRank } from './cards.js'
+import { cardRank } from './cards.ts'
 
 /**
  * Trick strength (spec §5). Traditional order, except that 7s and Jokers are

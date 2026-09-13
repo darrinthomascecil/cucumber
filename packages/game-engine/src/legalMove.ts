@@ -1,7 +1,7 @@
 import type { CardId } from '@cucumber/shared'
-import { cardLabel } from './cards.js'
-import { illegal } from './errors.js'
-import { leadGroup, sortByTrickStrength, trickStrength } from './ranking.js'
+import { cardLabel } from './cards.ts'
+import { illegal } from './errors.ts'
+import { leadGroup, sortByTrickStrength, trickStrength } from './ranking.ts'
 
 /** Cards must be a distinct subset of the hand. */
 export function assertHoldsAll(hand: readonly CardId[], cards: readonly CardId[]): void {

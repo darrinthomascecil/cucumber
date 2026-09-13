@@ -1,5 +1,21 @@
-import type { CardId } from './cards.js'
-import type { PlayerView } from './state.js'
+import type { CardId } from './cards.ts'
+import type { PlayerView, Seat } from './state.ts'
+
+/** A seat in the private room, before the table is full. */
+export interface RoomSeat {
+  seat: Seat
+  displayName: string | null
+  userId: string | null
+  connected: boolean
+}
+
+export interface Room {
+  matchId: string
+  /** SEATING until three players have sat down; the match state only exists
+   *  once the table is full. */
+  stage: 'SEATING' | 'MATCH'
+  seats: RoomSeat[]
+}
 
 /** Every state-changing command carries a version and an id (spec §46). */
 export interface CommandEnvelope {
@@ -20,6 +36,7 @@ export type ClientMessage = ClientCommand | { type: 'RESYNC' }
 
 export type ServerMessage =
   | { type: 'STATE_UPDATED'; view: PlayerView }
+  | { type: 'ROOM_WAITING'; room: Room }
   | { type: 'PLAY_REJECTED'; actionId: string; reason: string; code: string }
   | { type: 'ERROR'; reason: string; code: string }
 

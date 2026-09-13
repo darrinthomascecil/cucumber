@@ -1,3 +1,3 @@
-export * from './cards.js'
-export * from './state.js'
-export * from './protocol.js'
+export * from './cards.ts'
+export * from './state.ts'
+export * from './protocol.ts'

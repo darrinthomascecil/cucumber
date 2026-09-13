@@ -7,7 +7,7 @@ import {
   type EngineContext,
 } from '@cucumber/game-engine'
 import type { CardId, MatchState, Seat } from '@cucumber/shared'
-import { command } from './match.js'
+import { command } from './match.ts'
 
 /** Picks a legal play without any strategy — enough to drive a hand to its end. */
 export function chooseCards(state: MatchState, seat: Seat): CardId[] {

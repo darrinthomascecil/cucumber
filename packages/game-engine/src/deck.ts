@@ -1,5 +1,5 @@
 import { RANKS, SUITS, type CardId } from '@cucumber/shared'
-import { JOKER_IDS, makeCardId } from './cards.js'
+import { JOKER_IDS, makeCardId } from './cards.ts'
 
 export const DECK_SIZE = 54
 export const HAND_SIZE = 13

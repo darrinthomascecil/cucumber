@@ -1,6 +1,6 @@
 import { startTrick } from '@cucumber/game-engine'
 import type { CardId, MatchState, Seat } from '@cucumber/shared'
-import { newMatch } from './match.js'
+import { newMatch } from './match.ts'
 
 /** A match parked in trick play with exactly the hands a scenario needs. */
 export function trickTable(

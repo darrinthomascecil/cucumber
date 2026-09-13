@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { applyCommand, createMatch, setConnection, viewFor } from '@cucumber/game-engine'
 import { SEATS, leftOf, type Seat } from '@cucumber/shared'
-import { command, ctx, newMatch, startedMatch } from '../helpers/match.js'
-import { chooseCards, playOutHand, runExchange } from '../helpers/autoplay.js'
+import { command, ctx, newMatch, startedMatch } from '../helpers/match.ts'
+import { chooseCards, playOutHand, runExchange } from '../helpers/autoplay.ts'
 
 describe('starting a match', () => {
   it('stays in the lobby until all three are ready', () => {
@@ -23,15 +23,27 @@ describe('starting a match', () => {
       { userId: 'b', displayName: 'Bob' },
       { userId: 'c', displayName: 'Charlie' },
     ])
-    state = setConnection(state, 1, 'ONLINE').state
-    state = setConnection(state, 2, 'ONLINE').state
+    state = setConnection(state, 1, 'ONLINE', context).state
+    state = setConnection(state, 2, 'ONLINE', context).state
     for (const seat of SEATS) {
       state = applyCommand(state, seat, command({ type: 'READY', ready: true }), context).state
     }
     expect(state.phase).toBe('LOBBY')
-    state = setConnection(state, 3, 'ONLINE').state
-    state = applyCommand(state, 3, command({ type: 'READY', ready: true }), context).state
+    // The last player connecting is itself enough to satisfy the start rule —
+    // they should not have to press Ready a second time.
+    state = setConnection(state, 3, 'ONLINE', context).state
     expect(state.phase).toBe('EXCHANGE_SIZE_SELECTION')
+  })
+
+  it('does not start again when a player reconnects mid-match', () => {
+    const context = ctx()
+    let state = startedMatch()
+    const handNumber = state.handNumber
+    state = setConnection(state, 2, 'OFFLINE', context).state
+    expect(state.phase).toBe('EXCHANGE_SIZE_SELECTION')
+    state = setConnection(state, 2, 'ONLINE', context).state
+    expect(state.phase).toBe('EXCHANGE_SIZE_SELECTION')
+    expect(state.handNumber).toBe(handNumber)
   })
 
   it('deals 13 to each seat and 15 to the stock', () => {

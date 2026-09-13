@@ -1,4 +1,4 @@
-import type { CardId } from './cards.js'
+import type { CardId } from './cards.ts'
 
 /** Seats are fixed and clockwise: 1 -> 2 -> 3 -> 1. */
 export type Seat = 1 | 2 | 3

@@ -5,7 +5,7 @@ import {
   type EngineContext,
 } from '@cucumber/game-engine'
 import { SEATS, type CardId, type ClientCommand, type MatchState, type Seat } from '@cucumber/shared'
-import { seededRng } from './rng.js'
+import { seededRng } from './rng.ts'
 
 export function ctx(seed = 12345): EngineContext {
   return { rng: seededRng(seed) }
@@ -26,7 +26,7 @@ export function newMatch(): MatchState {
     { userId: 'u2', displayName: 'Bob' },
     { userId: 'u3', displayName: 'Charlie' },
   ])
-  for (const seat of SEATS) state = setConnection(state, seat, 'ONLINE').state
+  for (const seat of SEATS) state = setConnection(state, seat, 'ONLINE', ctx()).state
   return state
 }
 

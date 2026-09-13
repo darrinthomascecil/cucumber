@@ -1,5 +1,5 @@
 import { SEATS, type CardId, type HandResult, type Seat } from '@cucumber/shared'
-import { isSevenOrJoker, scoreValue } from './ranking.js'
+import { isSevenOrJoker, scoreValue } from './ranking.ts'
 
 /** A cumulative score at or above this ends the match (spec §29). */
 export const LOSS_LIMIT = 21

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { applyCommand } from '@cucumber/game-engine'
 import type { Seat } from '@cucumber/shared'
-import { command, ctx } from '../helpers/match.js'
-import { trickTable } from '../helpers/trick.js'
+import { command, ctx } from '../helpers/match.ts'
+import { trickTable } from '../helpers/trick.ts'
 
 type Hands = Record<Seat, string[]>
 

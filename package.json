@@ -24,6 +24,9 @@
     "typescript": "5.7.3",
     "vitest": "3.2.7",
     "@cucumber/shared": "workspace:*",
-    "@cucumber/game-engine": "workspace:*"
+    "@cucumber/game-engine": "workspace:*",
+    "ws": "8.18.0",
+    "@types/ws": "8.5.13",
+    "@cucumber/database": "workspace:*"
   }
 }

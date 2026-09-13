@@ -6,8 +6,8 @@ import {
   type Seat,
   type TurnPrompt,
 } from '@cucumber/shared'
-import { canMeetTarget, forcedLowRequirement, maxLeadCount } from './legalMove.js'
-import { actionSeat, playerAt } from './stateMachine.js'
+import { canMeetTarget, forcedLowRequirement, maxLeadCount } from './legalMove.ts'
+import { actionSeat, playerAt } from './stateMachine.ts'
 
 function promptFor(state: MatchState, seat: Seat): TurnPrompt {
   const acting = actionSeat(state)

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { IllegalMoveError, applyCommand, sortByTrickStrength } from '@cucumber/game-engine'
 import { SEATS, leftOf, type Seat } from '@cucumber/shared'
-import { command, ctx, startedMatch } from '../helpers/match.js'
-import { runExchange } from '../helpers/autoplay.js'
+import { command, ctx, startedMatch } from '../helpers/match.ts'
+import { runExchange } from '../helpers/autoplay.ts'
 
 describe('exchange size selection', () => {
   it('only the dealer may choose', () => {

@@ -1,0 +1,123 @@
+// Cucumber persistence (spec §40). The authoritative match state lives in a
+// single JSONB snapshot; `game_events` records how it got there.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum MatchStatus {
+  LOBBY
+  ACTIVE
+  COMPLETE
+}
+
+enum ConnectionStatus {
+  ONLINE
+  OFFLINE
+}
+
+/// Access is by invitation only — there is no public registration (spec §35).
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  displayName String     @map("display_name")
+  status      UserStatus @default(INVITED)
+  isAdmin     Boolean    @default(false) @map("is_admin")
+  /// Single-use invitation secret, stored hashed. Cleared once redeemed.
+  inviteHash  String?    @unique @map("invite_hash")
+  inviteSentAt DateTime? @map("invite_sent_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  matchPlayers MatchPlayer[]
+  events       GameEvent[]
+
+  @@map("users")
+}
+
+model Match {
+  id                String      @id @default(uuid())
+  status            MatchStatus @default(LOBBY)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  startedAt         DateTime?   @map("started_at")
+  finishedAt        DateTime?   @map("finished_at")
+  stateVersion      Int         @default(0) @map("state_version")
+  currentHandNumber Int         @default(0) @map("current_hand_number")
+
+  players        MatchPlayer[]
+  state          GameState?
+  events         GameEvent[]
+  appliedActions AppliedAction[]
+
+  @@map("matches")
+}
+
+model MatchPlayer {
+  matchId          String           @map("match_id")
+  userId           String           @map("user_id")
+  seat             Int
+  score            Int              @default(0)
+  connectionStatus ConnectionStatus @default(OFFLINE) @map("connection_status")
+  ready            Boolean          @default(false)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, seat])
+  @@unique([matchId, userId])
+  @@map("match_players")
+}
+
+/// The complete authoritative state, including every hidden card. Never sent
+/// to a client without passing through the engine's per-seat projection.
+model GameState {
+  matchId   String   @id @map("match_id")
+  version   Int
+  stateJson Json     @map("state_json")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@map("game_state")
+}
+
+model GameEvent {
+  id          String   @id @default(uuid())
+  matchId     String   @map("match_id")
+  sequence    Int
+  eventType   String   @map("event_type")
+  actorUserId String?  @map("actor_user_id")
+  payloadJson Json     @map("payload_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, sequence])
+  @@index([matchId, createdAt])
+  @@map("game_events")
+}
+
+/// Idempotency ledger (spec §46): one row per accepted command, so a replayed
+/// or double-delivered action is recognised instead of applied twice.
+model AppliedAction {
+  matchId   String   @map("match_id")
+  actionId  String   @map("action_id")
+  version   Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, actionId])
+  @@map("applied_actions")
+}

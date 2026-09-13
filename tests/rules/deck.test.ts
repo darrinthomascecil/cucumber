@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DECK_SIZE, buildDeck, cardRank, deal, shuffle } from '@cucumber/game-engine'
-import { seededRng } from '../helpers/rng.js'
+import { seededRng } from '../helpers/rng.ts'
 
 describe('deck', () => {
   const deck = buildDeck()

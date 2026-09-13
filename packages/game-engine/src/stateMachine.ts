@@ -8,11 +8,11 @@ import {
   type PlayerState,
   type Seat,
 } from '@cucumber/shared'
-import { buildDeck, deal, shuffle, type Rng } from './deck.js'
-import { illegal } from './errors.js'
-import { validateFollow, validateLead } from './legalMove.js'
-import { computeHandResult } from './scoring.js'
-import { applyFollow, applyLead, isTrickComplete, nextLeader, startTrick, trickCards } from './trick.js'
+import { buildDeck, deal, shuffle, type Rng } from './deck.ts'
+import { illegal } from './errors.ts'
+import { validateFollow, validateLead } from './legalMove.ts'
+import { computeHandResult } from './scoring.ts'
+import { applyFollow, applyLead, isTrickComplete, nextLeader, startTrick, trickCards } from './trick.ts'
 
 export const MAX_EXCHANGE = 5
 
@@ -215,6 +215,21 @@ function allConnected(state: MatchState): boolean {
   return state.players.every((player) => player.connected === 'ONLINE')
 }
 
+/**
+ * Spec §8: a match starts only when all three seats are occupied, connected
+ * and ready. Any of those three can become true last — including a
+ * reconnection after everyone has already pressed Ready — so the check lives
+ * here and is run from every path that can satisfy it.
+ */
+function maybeStartMatch(state: MatchState, ctx: EngineContext): EngineEvent[] {
+  if (state.phase !== 'LOBBY' || !allReady(state) || !allConnected(state)) return []
+  const dealerSeat = (ctx.rng(3) + 1) as Seat
+  return [
+    { type: 'MATCH_STARTED', seat: null, payload: { dealerSeat } },
+    ...beginHand(state, dealerSeat, ctx),
+  ]
+}
+
 function handleReady(state: MatchState, seat: Seat, ready: boolean, ctx: EngineContext): EngineEvent[] {
   assertPhase(state, 'LOBBY', 'FINAL_REVEAL')
   playerAt(state, seat).ready = ready
@@ -222,11 +237,7 @@ function handleReady(state: MatchState, seat: Seat, ready: boolean, ctx: EngineC
   if (!allReady(state)) return events
 
   if (state.phase === 'LOBBY') {
-    // Spec §8: three occupied seats, all connected, all ready.
-    if (!allConnected(state)) return events
-    const dealerSeat = (ctx.rng(3) + 1) as Seat
-    events.push({ type: 'MATCH_STARTED', seat: null, payload: { dealerSeat } })
-    events.push(...beginHand(state, dealerSeat, ctx))
+    events.push(...maybeStartMatch(state, ctx))
     return events
   }
 
@@ -422,21 +433,21 @@ export function setConnection(
   previous: MatchState,
   seat: Seat,
   connected: 'ONLINE' | 'OFFLINE',
+  ctx: EngineContext,
 ): ApplyResult {
   const state = clone(previous)
   playerAt(state, seat).connected = connected
-  if (connected === 'OFFLINE' && state.phase === 'LOBBY') {
-    playerAt(state, seat).ready = false
+  const events: EngineEvent[] = [
+    {
+      type: connected === 'ONLINE' ? 'PLAYER_CONNECTED' : 'PLAYER_DISCONNECTED',
+      seat,
+      payload: {},
+    },
+  ]
+  if (connected === 'ONLINE') {
+    // The last player to arrive may be the one everybody was waiting for.
+    events.push(...maybeStartMatch(state, ctx))
   }
   state.version = previous.version + 1
-  return {
-    state,
-    events: [
-      {
-        type: connected === 'ONLINE' ? 'PLAYER_CONNECTED' : 'PLAYER_DISCONNECTED',
-        seat,
-        payload: {},
-      },
-    ],
-  }
+  return { state, events }
 }
