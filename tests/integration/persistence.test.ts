@@ -130,10 +130,16 @@ describe('sign-in and seating', () => {
 
   it('deals once the third player sits down and everyone is ready', async () => {
     const { clients } = await seatThreePlayers()
-    for (const client of clients) await client.waitFor((view) => view.phase === 'LOBBY')
+    // Wait for presence to settle so each Ready is built on a current version.
     for (const client of clients) {
-      client.send(nextCommand(client.view as PlayerView)!)
-      await delay(60)
+      await client.waitFor(
+        (view) => view.phase === 'LOBBY' && view.players.every((p) => p.connected === 'ONLINE'),
+      )
+    }
+    for (const client of clients) {
+      const command = nextCommand(client.view as PlayerView)
+      if (command) client.send(command)
+      await delay(120)
     }
     const view = await clients[0]!.waitFor((v) => v.phase === 'EXCHANGE_SIZE_SELECTION')
     expect(view.you.hand).toHaveLength(13)
@@ -141,6 +147,36 @@ describe('sign-in and seating', () => {
     expect(view.players.every((player) => player.cardCount === 13)).toBe(true)
     for (const client of clients) await client.close()
   })
+})
+
+describe('presence', () => {
+  it('keeps players present who sat down before the match existed', async () => {
+    // The first two arrive while there is still nothing but chairs.
+    const early = []
+    for (const person of people.slice(0, 2)) {
+      const token = await seedInvitee(prisma, person.email, person.name)
+      const cookie = await redeem(token)
+      await joinRoom(cookie)
+      early.push(await TestClient.connect(cookie))
+    }
+    await delay(200)
+    expect(early[0]!.room?.stage).toBe('SEATING')
+
+    const lastPerson = people[2]!
+    const lastToken = await seedInvitee(prisma, lastPerson.email, lastPerson.name)
+    const lastCookie = await redeem(lastToken)
+    await joinRoom(lastCookie)
+    const last = await TestClient.connect(lastCookie)
+
+    for (const client of [...early, last]) {
+      const view = await client.waitFor(
+        (v) => v.players.every((player) => player.connected === 'ONLINE'),
+        'everyone present',
+      )
+      expect(view.players.map((player) => player.connected)).toEqual(['ONLINE', 'ONLINE', 'ONLINE'])
+    }
+    for (const client of [...early, last]) await client.close()
+  }, 120_000)
 })
 
 describe('disconnect and resume', () => {

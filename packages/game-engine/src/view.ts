@@ -72,18 +72,22 @@ function promptFor(state: MatchState, seat: Seat): TurnPrompt {
       if (canMeetTarget(hand, trick.targetCards)) {
         return {
           kind: 'FOLLOW',
-          message: `Play ${n} card${n === 1 ? '' : 's'} that meet or beat the current play.`,
+          message:
+            n === 1
+              ? 'Play a card that meets or beats the current play.'
+              : `Play ${n} cards that meet or beat the current play.`,
           requiredCards: n,
           selectableCards: [...hand],
         }
       }
       const forced = forcedLowRequirement(hand, n)
+      const lowest = n === 1 ? 'your lowest card' : `your ${n} lowest cards`
       return {
         kind: 'FORCED_LOW',
         message:
           forced.choices.length > forced.chooseCount
-            ? `You cannot meet the current play. Surrender your ${n} lowest cards — you may choose between the tied ones.`
-            : `You cannot meet the current play. Surrender your ${n} lowest cards.`,
+            ? `You cannot meet the current play. Surrender ${lowest} — you may choose between the tied ones.`
+            : `You cannot meet the current play. Surrender ${lowest}.`,
         requiredCards: n,
         selectableCards: [...forced.mandatory, ...forced.choices],
       }

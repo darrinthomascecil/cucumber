@@ -27,8 +27,10 @@
   "include": [
     "packages/*/src/**/*",
     "apps/*/src/**/*",
+    "tools/**/*",
     "tests/**/*",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "apps/web/vite.config.ts"
   ],
   "exclude": [
     "node_modules",

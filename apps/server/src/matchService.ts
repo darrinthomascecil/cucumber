@@ -100,6 +100,12 @@ export async function joinRoom(userId: string): Promise<Room> {
           displayName: player.user.displayName,
         })),
       )
+      // Players already have sockets open — the first two sat down before
+      // there was any state to record them in. Carry their presence across.
+      for (const player of state.players) {
+        const row = ordered.find((candidate) => candidate.seat === player.seat)
+        player.connected = row?.connectionStatus ?? 'OFFLINE'
+      }
       await tx.gameState.create({
         data: { matchId: match.id, version: state.version, stateJson: toJson(state) },
       })
