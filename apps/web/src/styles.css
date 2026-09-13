@@ -267,14 +267,15 @@ button:focus-visible {
 /* ---------- table ---------- */
 
 .table {
-  flex: 1;
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto auto;
   gap: 1rem;
   padding: 1rem 1.25rem 1.5rem;
   max-width: 60rem;
   width: 100%;
-  margin: 0 auto;
+  /* Sit the table in the middle of the window rather than stretching one
+     enormous empty panel to the bottom of it. */
+  margin: auto;
 }
 
 .opponents {
@@ -339,6 +340,7 @@ button:focus-visible {
   display: grid;
   gap: 1rem;
   align-content: center;
+  min-height: 17rem;
 }
 
 .felt-title {

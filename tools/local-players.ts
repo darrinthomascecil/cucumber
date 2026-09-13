@@ -94,8 +94,11 @@ async function signIn(name: string): Promise<string> {
   return session
 }
 
-function play(name: string, cookie: string): void {
+function play(name: string, cookie: string, index: number): void {
   const socket = new WebSocket(`${origin.replace('http', 'ws')}/ws`, { headers: { cookie } })
+  // Act at most once per version, and stagger the seats, so two fillers
+  // reacting to the same broadcast do not race each other into conflicts.
+  let actedOn = -1
   socket.on('open', () => {
     console.log(`${name} sat down`)
     socket.send(JSON.stringify({ type: 'RESYNC' }))
@@ -103,19 +106,24 @@ function play(name: string, cookie: string): void {
   socket.on('message', (raw: Buffer) => {
     const message = JSON.parse(raw.toString()) as ServerMessage
     if (message.type === 'PLAY_REJECTED') {
-      console.warn(`${name} was refused: ${message.code} — ${message.reason}`)
+      if (message.code !== 'VERSION_CONFLICT') {
+        console.warn(`${name} was refused: ${message.code} — ${message.reason}`)
+      }
       return
     }
     if (message.type !== 'STATE_UPDATED') return
-    const command = decide(message.view)
+    const view = message.view
+    if (view.version <= actedOn) return
+    const command = decide(view)
     if (!command) return
+    actedOn = view.version
     // A short pause so a human watching can follow what happened.
-    setTimeout(() => socket.send(JSON.stringify(command)), 700)
+    setTimeout(() => socket.send(JSON.stringify(command)), 600 + index * 250)
   })
   socket.on('close', () => console.log(`${name} left`))
 }
 
 const sessions = await Promise.all(names.map(signIn))
 await disconnect()
-names.forEach((name, index) => play(name, sessions[index] as string))
+names.forEach((name, index) => play(name, sessions[index] as string, index))
 console.log(`${names.join(' and ')} are waiting at the table. Ctrl-C to stop.`)
