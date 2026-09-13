@@ -1,0 +1,42 @@
+import type { CardId } from './cards.js'
+import type { PlayerView } from './state.js'
+
+/** Every state-changing command carries a version and an id (spec §46). */
+export interface CommandEnvelope {
+  matchId: string
+  expectedVersion: number
+  actionId: string
+}
+
+export type ClientCommand =
+  | ({ type: 'READY'; ready: boolean } & CommandEnvelope)
+  | ({ type: 'SELECT_EXCHANGE_SIZE'; size: number } & CommandEnvelope)
+  | ({ type: 'SELECT_EXCHANGE'; size: number } & CommandEnvelope)
+  | ({ type: 'SUBMIT_DISCARDS'; cards: CardId[] } & CommandEnvelope)
+  | ({ type: 'PLAY_CARDS'; cards: CardId[] } & CommandEnvelope)
+  | ({ type: 'START_NEXT_MATCH' } & CommandEnvelope)
+
+export type ClientMessage = ClientCommand | { type: 'RESYNC' }
+
+export type ServerMessage =
+  | { type: 'STATE_UPDATED'; view: PlayerView }
+  | { type: 'PLAY_REJECTED'; actionId: string; reason: string; code: string }
+  | { type: 'ERROR'; reason: string; code: string }
+
+export type GameEventType =
+  | 'MATCH_CREATED'
+  | 'PLAYER_JOINED'
+  | 'PLAYER_READY'
+  | 'MATCH_STARTED'
+  | 'HAND_DEALT'
+  | 'EXCHANGE_SIZE_SELECTED'
+  | 'CARDS_DRAWN'
+  | 'CARDS_EXCHANGED'
+  | 'CARDS_PLAYED'
+  | 'FORCED_LOW_PLAY'
+  | 'TRICK_COMPLETED'
+  | 'FINAL_REVEAL'
+  | 'HAND_COMPLETED'
+  | 'MATCH_COMPLETED'
+  | 'PLAYER_CONNECTED'
+  | 'PLAYER_DISCONNECTED'

@@ -7,23 +7,23 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start",
+    "dev": "pnpm --parallel --filter @cucumber/server --filter @cucumber/web dev",
+    "dev:server": "pnpm --filter @cucumber/server dev",
+    "dev:web": "pnpm --filter @cucumber/web dev",
+    "build": "pnpm --filter @cucumber/web build && pnpm --filter @cucumber/server build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "next": "15.5.25",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "pnpm --filter @cucumber/database generate",
+    "db:push": "pnpm --filter @cucumber/database push",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down"
   },
   "devDependencies": {
     "@types/node": "22.20.2",
-    "@types/react": "19.0.8",
-    "@types/react-dom": "19.0.3",
-    "jsdom": "26.0.0",
     "typescript": "5.7.3",
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "@cucumber/shared": "workspace:*",
+    "@cucumber/game-engine": "workspace:*"
   }
 }
