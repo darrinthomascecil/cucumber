@@ -256,7 +256,7 @@ button:focus-visible {
 }
 
 .tag {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.2rem 0.5rem;
@@ -288,7 +288,7 @@ button:focus-visible {
   display: grid;
   gap: 1rem 1.5rem;
   /* Equal rails, so the table is centred whether or not they hold anything. */
-  grid-template-columns: minmax(0, 20rem) minmax(0, 58rem) minmax(0, 20rem);
+  grid-template-columns: minmax(0, 21.5rem) minmax(0, 58rem) minmax(0, 21.5rem);
   grid-template-rows: auto auto;
   grid-template-areas:
     'left felt right'
@@ -296,7 +296,7 @@ button:focus-visible {
   justify-content: center;
   padding: 1.5rem 1.25rem 2rem;
   width: 100%;
-  max-width: 98rem;
+  max-width: 101rem;
   /*
    * Horizontally centred, anchored to the top. It used to be `margin: auto`,
    * which centred it vertically too — so every change in height below the
@@ -475,7 +475,7 @@ button:focus-visible {
   position: static;
   width: 1.4rem;
   height: 1.4rem;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
 }
 
 .dot {
@@ -514,7 +514,7 @@ button:focus-visible {
 
 .stock-count {
   margin-left: 0.7rem;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -584,7 +584,7 @@ button:focus-visible {
   left: 50%;
   transform: translateX(-50%);
   margin-top: 0.2rem;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   color: var(--warn);
   white-space: nowrap;
 }
@@ -672,7 +672,7 @@ button:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   color: var(--ink-dim);
   opacity: 0.75;
 }
@@ -710,7 +710,7 @@ button:focus-visible {
 }
 
 .felt-title {
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-dim);
@@ -938,7 +938,7 @@ button.card.plain:disabled {
 
 .reveal h2 {
   margin: 0;
-  font-size: 0.7rem;
+  font-size: 0.82rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ink-dim);
@@ -1018,7 +1018,7 @@ button.card.plain:disabled {
 .admin-table th {
   color: var(--ink-dim);
   font-weight: 500;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1060,17 +1060,18 @@ button.card.plain:disabled {
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .advisor-title {
-  font-size: 0.72rem;
+  font-size: 0.86rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--accent);
 }
 
 .advisor-meta {
-  font-size: 0.72rem;
+  font-size: 0.84rem;
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -1081,7 +1082,7 @@ button.card.plain:disabled {
 }
 
 .odds-bar {
-  height: 0.45rem;
+  height: 0.55rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.35);
   overflow: hidden;
@@ -1098,12 +1099,12 @@ button.card.plain:disabled {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   color: var(--ink-dim);
 }
 
 .odds-number strong {
-  font-size: 1.15rem;
+  font-size: 1.65rem;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -1119,13 +1120,13 @@ button.card.plain:disabled {
 
 .advice-row {
   display: grid;
-  grid-template-columns: 2.9rem 1fr auto;
+  grid-template-columns: 3.5rem 1fr auto;
   align-items: center;
   column-gap: 0.55rem;
 }
 
 .advice-label {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   color: var(--ink-dim);
 }
 
@@ -1133,29 +1134,31 @@ button.card.plain:disabled {
   display: inline-flex;
   gap: 0.25rem;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .advisor .card.small {
-  width: 2.05rem;
-  height: 2.9rem;
+  width: 2.35rem;
+  height: 3.3rem;
 }
 
 .advisor .card.small .rank {
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
 .advisor .card.small .suit {
-  font-size: 0.95rem;
+  font-size: 1.1rem;
 }
 
 .advice-odds {
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   font-weight: 600;
+  font-size: 1.02rem;
 }
 
 .advice-cost {
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-variant-numeric: tabular-nums;
   color: var(--warn);
 }
@@ -1172,7 +1175,7 @@ button.card.plain:disabled {
 
 .advisor-note {
   margin: 0.15rem 0 0;
-  font-size: 0.76rem;
+  font-size: 0.9rem;
   line-height: 1.45;
   color: var(--ink-dim);
 }
@@ -1195,7 +1198,7 @@ button.card {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   color: var(--ink-dim);
   cursor: pointer;
   user-select: none;
@@ -1251,12 +1254,15 @@ button.card {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .calibration-empty,
 .calibration-note {
   margin: 0;
-  font-size: 0.74rem;
+  /* Keeps a single word from being orphaned onto its own line. */
+  text-wrap: pretty;
+  font-size: 0.88rem;
   line-height: 1.45;
   color: var(--ink-dim);
 }
@@ -1273,9 +1279,10 @@ button.card {
 }
 
 .calibration-figure b {
-  font-size: 1.25rem;
+  font-size: 1.7rem;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  letter-spacing: -0.01em;
 }
 
 /* Far enough from the claim to be worth noticing. */
@@ -1284,12 +1291,12 @@ button.card {
 }
 
 .calibration-figure span {
-  font-size: 0.7rem;
+  font-size: 0.84rem;
   color: var(--ink-dim);
 }
 
 .calibration-count {
-  font-size: 0.72rem;
+  font-size: 0.84rem;
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -1297,7 +1304,7 @@ button.card {
 .calibration-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1310,24 +1317,24 @@ button.card {
 }
 
 .calibration-table td {
-  padding: 0.18rem 0;
+  padding: 0.3rem 0;
   color: var(--ink-dim);
 }
 
 .calibration-table td:first-child {
   color: var(--ink);
-  width: 2.6rem;
+  width: 3.2rem;
 }
 
 .calibration-table td:last-child {
   text-align: right;
-  width: 2rem;
+  width: 2.6rem;
 }
 
 .calibration-bar {
   display: inline-block;
-  width: 2.6rem;
-  height: 0.35rem;
+  width: 2.9rem;
+  height: 0.45rem;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.4);
   margin-right: 0.35rem;
@@ -1367,13 +1374,24 @@ button.card {
   stroke-linecap: round;
 }
 
+/*
+ * Stroke on both, but fill only on the dots. These rules sit after
+ * `.chart-line { fill: none }` at equal specificity, so a bare `fill` here
+ * wins the cascade and floods the line paths into solid wedges.
+ */
 .chart-said {
   stroke: var(--accent);
-  fill: var(--accent);
 }
 
 .chart-happened {
   stroke: var(--warn);
+}
+
+.chart-dot.chart-said {
+  fill: var(--accent);
+}
+
+.chart-dot.chart-happened {
   fill: var(--warn);
 }
 
@@ -1381,7 +1399,7 @@ button.card {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  font-size: 0.68rem;
+  font-size: 0.82rem;
   color: var(--ink-dim);
 }
 
