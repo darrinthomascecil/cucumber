@@ -80,29 +80,19 @@ function publicCards(view: PlayerView): CardId[] {
   return cards
 }
 
-/**
- * What the table has publicly shown each seat cannot do. Walk the current
- * trick in order, tracking the target as it changes hands; every unsuccessful
- * play is a seat proving, in front of everyone, that its whole hand could not
- * answer the target standing at that moment.
- *
- * Only the trick in progress is available here — the per-seat view does not
- * carry earlier tricks. Measured across 80,000 matches this inference is worth
- * about 0.2 points, which is inside the noise, so the fuller version is not
- * worth the state it would cost. It is here because it is free and correct.
- */
 function failuresFrom(view: PlayerView): CardClass[][][] {
   const failures: CardClass[][][] = [[], [], []]
-  const trick = view.trick
-  if (!trick || trick.plays.length === 0) return failures
-  let target: CardClass[] = []
-  for (const play of trick.plays) {
-    const cards = play.cards.map(classOf).sort((a, b) => a - b)
-    if (target.length === 0 || play.successful) {
-      target = cards
-      continue
+  const completed = view.completedTricks ?? (view.lastTrick ? [view.lastTrick] : [])
+  for (const trick of [...completed, ...(view.trick ? [view.trick] : [])]) {
+    let target: CardClass[] = []
+    for (const play of trick.plays) {
+      const cards = play.cards.map(classOf).sort((left, right) => left - right)
+      if (target.length === 0 || play.successful) {
+        target = cards
+        continue
+      }
+      failures[seatIndex(play.seat)]!.push([...target])
     }
-    failures[seatIndex(play.seat)]!.push([...target])
   }
   return failures
 }

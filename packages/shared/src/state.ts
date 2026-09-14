@@ -94,6 +94,7 @@ export interface MatchState {
   discards: CardId[]
   /** Cards played out in completed tricks this hand. */
   played: CardId[]
+  completedTricks?: TrickState[]
   exchange: ExchangeState | null
   trick: TrickState | null
   lastTrick: TrickState | null
@@ -155,6 +156,8 @@ export interface PlayerView {
   /** Every card played out to a completed trick this hand. Public: all three
    *  players watched each one hit the table. */
   played: CardId[]
+  completedTricks?: TrickState[]
+  historyComplete?: boolean
   exchange: { size: number; actingSeat: Seat | null; step: ExchangeStep } | null
   trick: TrickState | null
   lastTrick: TrickState | null
