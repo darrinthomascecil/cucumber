@@ -110,12 +110,17 @@ steadier than the individual estimates.
 Measured against two copies of the tuned heuristic, 12,000 matches per row
 (parity is about 36%):
 
-| deals imagined per decision | loss rate | cost per decision |
+| deals imagined per decision | loss rate | matches sampled |
 |---|---|---|
-| 64 | 25.31% ± 0.79 | ~1ms |
-| 256 | 21.89% ± 0.75 | ~3ms |
+| 64 | 25.31% ± 0.79 | 12,000 |
+| 256 | 21.89% ± 0.75 | 12,000 |
+| 1024 | 21.00% ± 1.29 | 4,000 |
 
-The in-game advisor samples 256 deals, which costs nothing noticeable — the
+Thinking four times harder than 256 buys nothing measurable — the intervals
+overlap. Returns have flattened, and the limit is no longer how many deals are
+sampled but what the rollouts assume about the opponents.
+
+So the in-game advisor samples 256: it is at the knee of the curve, and the
 panel reports its own timing, typically 15-25ms for an early-hand decision
 with a full hand of candidate plays.
 
