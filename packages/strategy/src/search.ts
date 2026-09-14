@@ -84,11 +84,12 @@ export function searchActions(
     cloneCounts(info.hand),
   ])
   let actions = candidatesFor(probe, info.seat)
+  const context = { hand: info.hand, scores: info.scores, seat: info.seat }
   if (actions.length > maxActions) {
     actions = [...actions]
       .sort(
         (a, b) =>
-          scoreCandidate(b, info.hand, weights) - scoreCandidate(a, info.hand, weights),
+          scoreCandidate(b, context, weights) - scoreCandidate(a, context, weights),
       )
       .slice(0, maxActions)
   }

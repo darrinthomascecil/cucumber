@@ -52,12 +52,18 @@ is enforced by what is physically in the process — not by good intentions.
 
 ## Self-play
 
+Runs on worker threads — about 109,000 matches a second on twelve cores, or
+9µs a match.
+
 ```bash
-pnpm self-play sanity      # 16,000 matches a second
-pnpm self-play matrix      # round robin between candidate strategies
-pnpm self-play tune        # search the weight space against a fixed opponent
-pnpm self-play search      # does searching beat the tuned heuristic?
+pnpm self-play sanity                 # throughput
+pnpm self-play cem --budget 10000000  # cross-entropy search for a strategy
+pnpm self-play matrix                 # round robin between candidates
+pnpm self-play search --worlds 256    # does searching beat the heuristic?
 ```
+
+The current strategy came from ten million matches of that search. What it
+found — and, just as usefully, what it failed to find — is in `STRATEGY.md`.
 
 ## Checks
 

@@ -42,7 +42,11 @@ export function weightedDiscards(weights: Weights): (hand: Counts, n: number) =>
     const appetite = (c: CardClass): number => {
       const play = emptyCounts()
       play[c] = 1
-      return scoreCandidate({ counts: play, successful: true, isLead: false }, hand, weights)
+      return scoreCandidate(
+        { counts: play, successful: true, isLead: false },
+        { hand, scores: [0, 0, 0], seat: 0 },
+        weights,
+      )
     }
     ranked.sort((a, b) => appetite(b) - appetite(a))
     const out = emptyCounts()
@@ -216,11 +220,14 @@ export function trial(
   opponent: Player,
   matches: number,
   random: Random,
+  /** Where this chunk sits in a larger run, so splitting the work across
+   *  workers keeps the same rotation through the three seats. */
+  startIndex = 0,
 ): Trial {
   let losses = 0
   let handTotal = 0
   for (let m = 0; m < matches; m++) {
-    const seat = (m % 3) as SeatIndex
+    const seat = ((startIndex + m) % 3) as SeatIndex
     const line: [Player, Player, Player] = [opponent, opponent, opponent]
     line[seat] = subject
     const record = playMatch(line, random)

@@ -53,17 +53,34 @@ you being stripped of your 2s and 3s. The whole game is a negotiation between:
 
 ## What self-play concluded
 
-Five generations, each tuned against the previous champion until the tuner
-could no longer beat it. The equilibrium weights
+Ten million matches of cross-entropy search, twelve worker threads, about two
+minutes of wall clock. The equilibrium weights
 (`packages/strategy/src/heuristic.ts`):
 
 ```
-value  1      reward for shedding points
-strength 1    penalty for spending trick strength, fading as the hand shortens
-low    1      extra penalty for spending a low card you might finish on
-high  -10     extra penalty for spending a 7 or a Joker
-width -2.5    preference for leading one card rather than several
+value     0.95   reward for shedding points
+strength  0.96   penalty for spending trick strength, fading as the hand shortens
+low       0.99   extra penalty for spending a low card you might finish on
+high     -9.40   extra penalty for spending a 7 or a Joker
+width    -2.31   preference for leading one card rather than several
+gamma     1.24   how sharply strength stops mattering as the hand runs down
+panic    -0.52   late-hand appetite for dumping a 7 or Joker
+pressure -0.09   how much the score situation changes that appetite
 ```
+
+**The honest headline is that ten million matches barely moved it.** The
+starting point — found much earlier by plain coordinate ascent — was already
+at a local optimum of this policy family. The champion beats it, consistently
+and in both directions (35.6% against it, 37.6% for it against two champions),
+but by about two points. The three new dimensions the bigger search was given
+mostly came back as zero: `panic` and `pressure` found nothing.
+
+The one real discovery is **gamma ≈ 1.24**: trick strength keeps mattering a
+little later into a hand than a linear fade implies. You should hold your
+armour slightly longer than instinct suggests.
+
+That is a useful negative result. Further strength has to come from a richer
+policy or from search — not from turning these dials.
 
 Two of those are the opposite of the obvious play.
 
@@ -90,34 +107,68 @@ you know, plays each one out, and keeps the play that survives most often.
 Every deal is scored against every candidate, so the *comparison* is far
 steadier than the individual estimates.
 
-Measured against two copies of the tuned heuristic (parity is about 36%):
+Measured against two copies of the tuned heuristic, 12,000 matches per row
+(parity is about 36%):
 
-| worlds sampled | loss rate | cost |
+| deals imagined per decision | loss rate | cost per decision |
 |---|---|---|
-| 24 | 30.8% ± 3.1 | — |
-| 48 | 24.2% ± 2.9 | ~1ms/decision |
-| 128 | 25.0% ± 2.9 | — |
-| 256 | 21.4% ± 2.7 | ~3ms/decision |
+| 64 | 25.31% ± 0.79 | ~1ms |
+| 256 | 21.89% ± 0.75 | ~3ms |
 
-Returns flatten after about 48 deals. The in-game advisor uses 256 because it
-costs nothing noticeable — the panel reports its own timing, typically 15-25ms.
+The in-game advisor samples 256 deals, which costs nothing noticeable — the
+panel reports its own timing, typically 15-25ms for an early-hand decision
+with a full hand of candidate plays.
+
+## How the search itself had to be fixed twice
+
+Worth recording, because both failures produced confident nonsense.
+
+**Scoring against a single opponent drifts.** The first cross-entropy run
+measured each candidate against the current champion alone. The champion
+wandered somewhere weak, later rounds optimised against that weakness, and the
+final answer lost **65%** of its matches to the player it had started from. A
+candidate is now scored against a gauntlet — the incumbent, the champion
+before it, and a fixed anchor — and a new champion is crowned only if it beats
+the incumbent on that same gauntlet.
+
+**Comparing two different examinations promotes nothing.** The second run then
+promoted once and never again. The incumbent's score had been measured against
+one gauntlet and every challenger against a different one; the bar was simply
+from a different test. The incumbent now sits in the field each round and is
+re-scored alongside everyone else, so the comparison is like for like.
+
+Both bugs are the same mistake in different clothes: a number that looks like a
+strength is only a strength if it came from the same measurement as the number
+you are comparing it to.
 
 ## Round robin
 
-`pnpm self-play matrix`, 4000 matches per cell, lower is better:
+`pnpm self-play matrix`, 60,000 matches per cell, lower is better. "previous"
+is the five-parameter point the earlier coordinate ascent reached; "champion"
+is what ten million matches made of it.
 
 ```
-subject \ opponent        naive        gen0        gen1 equilibrium
-naive                    37.43%      88.20%      82.30%      84.05%
-gen0                      3.38%      35.45%      46.38%      47.88%
-gen1                      8.15%      23.97%      36.63%      36.15%
-equilibrium               7.40%      24.15%      35.75%      36.68%
+subject \ opponent        naive    previous    champion
+naive                    37.13%      84.57%      85.20%
+previous                  7.27%      36.61%      37.83%
+champion                  6.08%      35.65%      36.48%
 ```
 
-Note `gen0`. It demolishes the naive player (3.38%) and is *worse than parity*
-against its own successors. It had learned to beat one specific opponent, not
-to play Cucumber. That is why the tuning iterates against the current champion
-rather than against a fixed sparring partner.
+The champion is better than its predecessor in both directions — it loses
+35.65% against two of them, and they lose 37.83% against two of it — and
+better against the naive player too. Two points. That is what ten million
+matches bought, and it is worth saying plainly rather than dressing up.
+
+An earlier generation, from the first round of tuning, is the cautionary tale:
+
+```
+gen0 vs naive     3.38%        gen0 vs its own successors     46-48%
+```
+
+It demolishes the naive player and is *worse than parity* against its own
+successors. It had learned to beat one specific opponent, not to play
+Cucumber. That is why candidates are now scored against a gauntlet rather than
+a single sparring partner.
 
 ## Where this is still wrong
 
@@ -139,14 +190,37 @@ Honest limits, not disclaimers:
   model, grid-searched against play strength (`pnpm self-play continuation`).
   It is measurably better than a flat guess, and it is not exact.
 
+## Speed
+
+The harness runs on worker threads — `pnpm self-play sanity`:
+
+```
+500,000 matches in 4.6s across 12 workers
+109,242 matches/second        9.2µs per match
+```
+
+About 5.7× a single core on this 14-core machine, which is what makes a
+ten-million-match search a two-minute question rather than an overnight one.
+
 ## Reproducing all of it
 
 ```bash
-pnpm self-play sanity                      # the harness itself
-pnpm self-play tune --opponent baseline    # one generation of improvement
-pnpm self-play matrix                      # the round robin above
-pnpm self-play search --worlds 256         # search against the heuristic
-pnpm self-play continuation                # the terminal-value grid
-pnpm vitest run tests/strategy             # correctness, including the
-                                           # information-constraint test
+pnpm self-play sanity                       # throughput
+pnpm self-play cem --budget 10000000        # the full search above
+pnpm self-play matrix                       # the round robin
+pnpm self-play search --worlds 256          # search against the heuristic
+pnpm vitest run tests/strategy              # correctness, including the
+                                            # information-constraint test
 ```
+
+## On the word "perfect"
+
+There is no perfect strategy for Cucumber in the sense that there is one for
+noughts and crosses. It is a game of imperfect information with three players,
+so "perfect" would mean an equilibrium over a game tree that cannot be walked.
+What is here instead, and what the numbers above actually support:
+
+- a policy family searched to convergence, verified against its own history so
+  it has not merely learned one opponent;
+- a search on top of it that is measurably stronger than the policy alone;
+- and every claim attached to a sample size and an error bar.

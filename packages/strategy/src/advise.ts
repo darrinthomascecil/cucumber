@@ -148,7 +148,11 @@ function discardCandidates(hand: readonly CardId[], n: number, weights: Weights)
   const single = (c: number): number => {
     const play = emptyCounts()
     play[c] = 1
-    return scoreCandidate({ counts: play, successful: true, isLead: false }, counts, weights)
+    return scoreCandidate(
+      { counts: play, successful: true, isLead: false },
+      { hand: counts, scores: [0, 0, 0], seat: 0 },
+      weights,
+    )
   }
   ranked.sort((a, b) => single(b) - single(a))
 
