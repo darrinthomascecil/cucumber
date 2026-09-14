@@ -6,6 +6,17 @@ export interface Rejection {
   reason: string
 }
 
+/**
+ * A command without its envelope — the part a caller decides, before the
+ * connection stamps on the match, the version and the action id.
+ *
+ * Distributed over the union on purpose: a plain Omit of a union keeps only
+ * the keys every member shares, which here is nothing but `type`.
+ */
+export type Intent<T = ClientCommand> = T extends unknown
+  ? Omit<T, 'matchId' | 'expectedVersion' | 'actionId'>
+  : never
+
 export interface GameConnection {
   view: PlayerView | null
   /** Cards this player threw into their own face-down discard — they saw
@@ -14,7 +25,7 @@ export interface GameConnection {
   room: Room | null
   connected: boolean
   rejection: Rejection | null
-  send: (command: Omit<ClientCommand, 'matchId' | 'expectedVersion' | 'actionId'>) => void
+  send: (command: Intent) => void
   dismiss: () => void
 }
 
@@ -117,7 +128,7 @@ export function useGame(enabled: boolean): GameConnection {
   }, [enabled])
 
   const send = useCallback(
-    (command: Omit<ClientCommand, 'matchId' | 'expectedVersion' | 'actionId'>) => {
+    (command: Intent) => {
       const socket = socketRef.current
       const current = viewRef.current
       if (!socket || socket.readyState !== WebSocket.OPEN || !current) return

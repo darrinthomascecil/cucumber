@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Me } from './api.ts'
 import { useAdvisor } from './useAdvisor.ts'
+import { useAutoplay } from './useAutoplay.ts'
+import { useCalibration } from './useCalibration.ts'
 import { useGame } from './useGame.ts'
 import { Admin } from './components/Admin.tsx'
 import { Lobby } from './components/Lobby.tsx'
@@ -14,6 +16,9 @@ export function App() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [advisorOn, setAdvisorOn] = useState(
     () => window.localStorage.getItem('cucumber.advisor') === 'on',
+  )
+  const [autoplayOn, setAutoplayOn] = useState(
+    () => window.localStorage.getItem('cucumber.autoplay') === 'on',
   )
 
   const signIn = useCallback(async (token: string) => {
@@ -53,11 +58,23 @@ export function App() {
 
   const game = useGame(me !== null)
   const ADVISOR_WORLDS = 256
-  const advisor = useAdvisor(game.view, game.discarded, advisorOn, ADVISOR_WORLDS)
+  // Autoplay needs the advisor's opinion even when the panel is hidden.
+  const advisor = useAdvisor(game.view, game.discarded, advisorOn || autoplayOn, ADVISOR_WORLDS)
+  const { calibration, reset: resetCalibration } = useCalibration(
+    game.view,
+    advisor.advice,
+    advisor.version,
+  )
+  useAutoplay(game.view, advisor.advice, advisor.version, autoplayOn, game.send)
 
   const toggleAdvisor = (on: boolean) => {
     setAdvisorOn(on)
     window.localStorage.setItem('cucumber.advisor', on ? 'on' : 'off')
+  }
+
+  const toggleAutoplay = (on: boolean) => {
+    setAutoplayOn(on)
+    window.localStorage.setItem('cucumber.autoplay', on ? 'on' : 'off')
   }
 
   const signOut = async () => {
@@ -100,6 +117,14 @@ export function App() {
             />
             Advisor
           </label>
+          <label className="toggle" title="Play your seat automatically, taking the advisor's first choice">
+            <input
+              type="checkbox"
+              checked={autoplayOn}
+              onChange={(event) => toggleAutoplay(event.target.checked)}
+            />
+            Autoplay
+          </label>
           <span>{me.displayName}</span>
           {me.isAdmin ? (
             <button className="link-button" type="button" onClick={() => setShowAdmin((on) => !on)}>
@@ -133,6 +158,8 @@ export function App() {
           advisorThinking={advisor.thinking}
           advisorMilliseconds={advisor.milliseconds}
           advisorWorlds={ADVISOR_WORLDS}
+          calibration={calibration}
+          onResetCalibration={resetCalibration}
           onCommand={(command) => game.send(command)}
         />
       ) : game.room ? (

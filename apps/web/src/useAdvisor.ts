@@ -5,11 +5,13 @@ import type { AdvisorRequest, AdvisorResponse } from './advisor.worker.ts'
 
 export interface AdvisorState {
   advice: Advice | null
+  /** The state version this advice was computed for. */
+  version: number | null
   thinking: boolean
   milliseconds: number
 }
 
-const IDLE: AdvisorState = { advice: null, thinking: false, milliseconds: 0 }
+const IDLE: AdvisorState = { advice: null, version: null, thinking: false, milliseconds: 0 }
 
 /**
  * Asks the worker for advice whenever the position changes. Only the newest
@@ -36,7 +38,12 @@ export function useAdvisor(
     workerRef.current = worker
     worker.onmessage = (event: MessageEvent<AdvisorResponse>) => {
       if (event.data.id !== latestRef.current) return
-      setState({ advice: event.data.advice, thinking: false, milliseconds: event.data.milliseconds })
+      setState({
+        advice: event.data.advice,
+        version: event.data.id,
+        thinking: false,
+        milliseconds: event.data.milliseconds,
+      })
     }
     return () => {
       worker.terminate()

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { beatsTarget, leadGroup, sortByTrickStrength } from '@cucumber/game-engine'
 import { leftOf, type CardId, type PlayerView, type Seat as SeatNumber } from '@cucumber/shared'
 import type { Advice } from '@cucumber/strategy'
+import type { Calibration as CalibrationStats } from '../useCalibration.ts'
 import { Advisor } from './Advisor.tsx'
+import { Calibration } from './Calibration.tsx'
 import { CardBack, CardButton, CardFace } from './Card.tsx'
 import { Reveal } from './Reveal.tsx'
 import { Seat } from './Seat.tsx'
@@ -14,6 +16,8 @@ interface Props {
   advisorThinking: boolean
   advisorMilliseconds: number
   advisorWorlds: number
+  calibration: CalibrationStats
+  onResetCalibration: () => void
   onCommand: (command: Command) => void
 }
 
@@ -45,6 +49,8 @@ export function Table({
   advisorThinking,
   advisorMilliseconds,
   advisorWorlds,
+  calibration,
+  onResetCalibration,
   onCommand,
 }: Props) {
   const [selected, setSelected] = useState<CardId[]>([])
@@ -153,6 +159,8 @@ export function Table({
             ))}
           </div>
         ) : null}
+
+        <Calibration stats={calibration} onReset={onResetCalibration} />
       </aside>
 
       <div className="tabletop">

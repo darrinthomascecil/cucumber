@@ -1234,3 +1234,109 @@ button.card {
   transform: translateX(0.9rem);
   background: var(--accent);
 }
+
+/* ---------- advisor accuracy ---------- */
+
+.calibration {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.calibration-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.calibration-empty,
+.calibration-note {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.calibration-headline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.calibration-figure {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.calibration-figure b {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+/* Far enough from the claim to be worth noticing. */
+.calibration-figure b.off {
+  color: var(--warn);
+}
+
+.calibration-figure span {
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+}
+
+.calibration-count {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.calibration-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.calibration-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-dim);
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.calibration-table td {
+  padding: 0.18rem 0;
+  color: var(--ink-dim);
+}
+
+.calibration-table td:first-child {
+  color: var(--ink);
+  width: 2.6rem;
+}
+
+.calibration-table td:last-child {
+  text-align: right;
+  width: 2rem;
+}
+
+.calibration-bar {
+  display: inline-block;
+  width: 2.6rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.calibration-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-deep);
+}
