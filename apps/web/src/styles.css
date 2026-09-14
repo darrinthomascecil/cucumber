@@ -1067,57 +1067,72 @@ button.card:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.advice-best {
-  display: flex;
+/*
+ * Label, cards and number in the same three columns on every row, so the
+ * alternatives line up under the recommendation instead of wrapping ragged.
+ */
+.advice-rows {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.advice-row {
+  display: grid;
+  grid-template-columns: 2.9rem 1fr auto;
   align-items: center;
-  gap: 0.6rem;
-  padding-top: 0.15rem;
+  column-gap: 0.55rem;
 }
 
 .advice-label {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--ink-dim);
-  min-width: 3rem;
 }
 
 .advice-cards {
   display: inline-flex;
   gap: 0.25rem;
+  min-width: 0;
+}
+
+.advisor .card.small {
+  width: 2.05rem;
+  height: 2.9rem;
+}
+
+.advisor .card.small .rank {
+  font-size: 0.8rem;
+}
+
+.advisor .card.small .suit {
+  font-size: 0.95rem;
 }
 
 .advice-odds {
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
   font-weight: 600;
 }
 
-.advice-list {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.7rem;
-  border-top: 1px solid var(--line);
-  padding-top: 0.5rem;
-}
-
-.advice-alt {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  opacity: 0.8;
-}
-
 .advice-cost {
-  margin-left: auto;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   color: var(--warn);
 }
 
+.advice-row:not(.best) {
+  opacity: 0.82;
+}
+
+.advice-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 0.15rem 0;
+}
+
 .advisor-note {
-  margin: 0;
-  font-size: 0.78rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
   color: var(--ink-dim);
 }
 

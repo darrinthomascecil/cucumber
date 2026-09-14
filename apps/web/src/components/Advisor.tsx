@@ -44,33 +44,33 @@ export function Advisor({ advice, thinking, milliseconds, worlds }: Props) {
         </div>
       </div>
 
-      {best ? (
-        <div className="advice-best">
-          <span className="advice-label">
-            {advice.kind === 'DISCARD' ? 'Throw' : 'Play'}
-          </span>
-          <span className="advice-cards">
-            {best.cards.map((card: CardId) => (
-              <CardFace key={card} id={card} small />
-            ))}
-          </span>
-          <span className="advice-odds">{percent(best.winProbability)}</span>
-        </div>
-      ) : null}
+      <div className="advice-rows">
+        {best ? (
+          <div className="advice-row best">
+            <span className="advice-label">{advice.kind === 'DISCARD' ? 'Throw' : 'Play'}</span>
+            <span className="advice-cards">
+              {best.cards.map((card: CardId) => (
+                <CardFace key={card} id={card} small />
+              ))}
+            </span>
+            <span className="advice-odds">{percent(best.winProbability)}</span>
+          </div>
+        ) : null}
 
-      {alternatives.length > 0 ? (
-        <div className="advice-list">
-          <span className="advice-label">Else</span>
-          {alternatives.map((suggestion) => (
-            <span className="advice-alt" key={suggestion.cards.join('-')}>
+        {alternatives.length > 0 ? <span className="advice-divider" /> : null}
+
+        {alternatives.map((suggestion, index) => (
+          <div className="advice-row" key={suggestion.cards.join('-')}>
+            <span className="advice-label">{index === 0 ? 'Else' : ''}</span>
+            <span className="advice-cards">
               {suggestion.cards.map((card: CardId) => (
                 <CardFace key={card} id={card} small />
               ))}
-              <span className="advice-cost">−{percent(suggestion.cost)}</span>
             </span>
-          ))}
-        </div>
-      ) : null}
+            <span className="advice-cost">−{percent(suggestion.cost)}</span>
+          </div>
+        ))}
+      </div>
 
       {advice.note ? <p className="advisor-note">{advice.note}</p> : null}
     </section>
