@@ -1,6 +1,8 @@
 import {
   CLASS_COUNT,
   CLASS_SUPPLY,
+  CLASS_VALUE,
+  HIGH_CLASS,
   cloneCounts,
   emptyCounts,
   totalOf,
@@ -256,6 +258,59 @@ export function trial(
     averageHands: handTotal / matches,
     error: Math.sqrt((rate * (1 - rate)) / matches),
   }
+}
+
+export interface FinalStats {
+  hands: number
+  /** Fraction of hands this player finished holding a 7 or a Joker. */
+  sevenRate: number
+  /** Average points the final card cost them. */
+  meanValue: number
+  /** How often each class was the card left over. */
+  histogram: number[]
+}
+
+/**
+ * What is this player actually left holding?
+ *
+ * Loss rate alone hides this. A policy can lose about as often as its rivals
+ * while being wrong in a specific, visible way — and the card you are left
+ * holding is the whole game, so it is worth counting directly.
+ *
+ * For reference: 6 of the 54 cards are 7s or Jokers, so finishing on one 11%
+ * of the time is what indifference looks like. Good play should be far below.
+ */
+export function finalCardStats(
+  subject: Player,
+  opponent: Player,
+  matches: number,
+  random: Random,
+): FinalStats {
+  const histogram = new Array(CLASS_COUNT).fill(0)
+  let hands = 0
+  let sevens = 0
+  let value = 0
+
+  for (let m = 0; m < matches; m++) {
+    const seat = (m % 3) as SeatIndex
+    const line: [Player, Player, Player] = [opponent, opponent, opponent]
+    line[seat] = subject
+    let scores: [number, number, number] = [0, 0, 0]
+    let dealer = random.int(3) as SeatIndex
+    for (let hand = 1; hand <= 60; hand++) {
+      const record = playHand(line, scores, dealer, random)
+      const final = record.finals[seat]!
+      histogram[final]!++
+      hands++
+      if (final === HIGH_CLASS) sevens++
+      value += CLASS_VALUE[final]!
+      scores = record.outcome.scores
+      if (record.outcome.matchOver) break
+      dealer = leftOfIndex(dealer)
+    }
+  }
+
+  return { hands, sevenRate: sevens / hands, meanValue: value / hands, histogram }
 }
 
 /** Head-to-head: two of `a` against one `b`, and the mirror, to compare fairly. */

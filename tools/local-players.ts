@@ -11,11 +11,8 @@
 import { createHash, randomBytes } from 'node:crypto'
 import WebSocket from 'ws'
 import { db, disconnect } from '@cucumber/database'
-import {
-  findQualifyingPlay,
-  forcedLowRequirement,
-  sortByTrickStrength,
-} from '@cucumber/game-engine'
+import { sortByTrickStrength } from '@cucumber/game-engine'
+import { advise, type SeatMemory } from '@cucumber/strategy'
 import type { ClientCommand, PlayerView, ServerMessage } from '@cucumber/shared'
 
 const origin = process.env.LOCAL_ORIGIN ?? 'http://127.0.0.1:8080'
@@ -25,43 +22,71 @@ if (names.length === 0) {
   process.exit(1)
 }
 
-function decide(view: PlayerView): ClientCommand | null {
+/**
+ * These players think with the same brain as the in-game advisor: the tuned
+ * strategy, searched over a few hundred imagined deals, from nothing but the
+ * sanitised view the server sends them.
+ *
+ * An earlier version of this file led its lowest card every trick, which is
+ * how you arrive at the reveal holding your highest — and it was doing that
+ * long after there was a real strategy sitting in the repository unused.
+ */
+const WORLDS = Number(process.env.LOCAL_WORLDS ?? 160)
+
+function decide(view: PlayerView, memory: SeatMemory): ClientCommand | null {
   const hand = view.you.hand
   const envelope = {
     matchId: view.matchId,
     expectedVersion: view.version,
     actionId: randomBytes(8).toString('hex'),
   }
+
   switch (view.prompt.kind) {
     case 'READY':
       return view.you.ready ? null : { type: 'READY', ready: true, ...envelope }
+
     case 'SELECT_EXCHANGE_SIZE':
+      // Never searched: the exchange size is the one decision self-play has
+      // not been asked about. Three is the figure everything was tuned under.
       return { type: 'SELECT_EXCHANGE_SIZE', size: 3, ...envelope }
+
     case 'SELECT_EXCHANGE':
       return { type: 'SELECT_EXCHANGE', size: view.prompt.options?.[1] ?? 0, ...envelope }
-    case 'SUBMIT_DISCARDS':
+
+    case 'SUBMIT_DISCARDS': {
+      const required = view.prompt.requiredCards ?? 0
+      const advice = advise(view, memory, { worlds: WORLDS })
+      const chosen = advice.suggestions[0]?.cards
       return {
         type: 'SUBMIT_DISCARDS',
-        cards: sortByTrickStrength(hand).slice(0, view.prompt.requiredCards ?? 0),
+        // The advisor is approximate here, so fall back on the worst cards.
+        cards: chosen?.length === required ? chosen : sortByTrickStrength(hand).slice(0, required),
         ...envelope,
       }
-    case 'LEAD':
-      return { type: 'PLAY_CARDS', cards: [sortByTrickStrength(hand)[0] as string], ...envelope }
-    case 'FOLLOW': {
-      const play = findQualifyingPlay(hand, view.trick?.targetCards ?? [])
-      return play ? { type: 'PLAY_CARDS', cards: play, ...envelope } : null
     }
+
+    case 'LEAD':
+    case 'FOLLOW':
     case 'FORCED_LOW': {
-      const forced = forcedLowRequirement(hand, view.prompt.requiredCards ?? 0)
+      const advice = advise(view, memory, { worlds: WORLDS })
+      const chosen = advice.suggestions[0]?.cards
+      if (chosen && chosen.length > 0) {
+        return { type: 'PLAY_CARDS', cards: chosen, ...envelope }
+      }
+      // Only reachable if the search returned nothing; play something legal.
+      const required = view.prompt.requiredCards ?? 1
+      const allowed = view.prompt.selectableCards ?? hand
       return {
         type: 'PLAY_CARDS',
-        cards: [...forced.mandatory, ...forced.choices.slice(0, forced.chooseCount)],
+        cards: sortByTrickStrength(allowed).slice(0, required),
         ...envelope,
       }
     }
+
     case 'NEXT_MATCH':
       // Starting a fresh match is a human decision, not a filler's.
       return null
+
     default:
       return null
   }
@@ -99,6 +124,9 @@ function play(name: string, cookie: string, index: number): void {
   // Act at most once per version, and stagger the seats, so two fillers
   // reacting to the same broadcast do not race each other into conflicts.
   let actedOn = -1
+  // Its own discards: cards it saw and parted with, which it may remember.
+  let memory: SeatMemory = { discarded: [] }
+  let handNumber = 0
   socket.on('open', () => {
     console.log(`${name} sat down`)
     socket.send(JSON.stringify({ type: 'RESYNC' }))
@@ -113,9 +141,14 @@ function play(name: string, cookie: string, index: number): void {
     }
     if (message.type !== 'STATE_UPDATED') return
     const view = message.view
+    if (view.handNumber !== handNumber) {
+      handNumber = view.handNumber
+      memory = { discarded: [] }
+    }
     if (view.version <= actedOn) return
-    const command = decide(view)
+    const command = decide(view, memory)
     if (!command) return
+    if (command.type === 'SUBMIT_DISCARDS') memory.discarded.push(...command.cards)
     actedOn = view.version
     // A short pause so a human watching can follow what happened.
     setTimeout(() => socket.send(JSON.stringify(command)), 600 + index * 250)

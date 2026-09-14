@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   BASELINE,
   TUNED,
+  archetypePlayer,
+  finalCardStats,
   heuristicPlayer,
   playMatch,
   searchPlayer,
@@ -82,4 +84,46 @@ describe('searching beats guessing', () => {
     // against the search silently degrading into the heuristic.
     expect(result.lossRate).toBeLessThan(PARITY - 0.04)
   }, 120_000)
+})
+
+describe('what the strategy is left holding', () => {
+  /**
+   * Loss rate alone hid a bad player in plain sight. The seat-fillers led
+   * their lowest card every trick — which is a machine for keeping your
+   * highest — and finished holding a 7 or a Joker in 30% of hands, three
+   * times worse than choosing at random. Nothing measured that, so nothing
+   * caught it. The card you are left holding is the whole game, so count it.
+   */
+  it('almost never finishes on a 7 or a Joker', () => {
+    const stats = finalCardStats(
+      heuristicPlayer('tuned', TUNED),
+      heuristicPlayer('tuned', TUNED),
+      1500,
+      xorshift(4242),
+    )
+    // 6 of 54 cards are 7s or Jokers, so indifference is about 11%.
+    expect(stats.sevenRate).toBeLessThan(0.05)
+  })
+
+  it('finishes on a low card, not just a legal one', () => {
+    const stats = finalCardStats(
+      heuristicPlayer('tuned', TUNED),
+      heuristicPlayer('tuned', TUNED),
+      1500,
+      xorshift(99),
+    )
+    // The deck averages about 8 points a card; good play should be well under.
+    expect(stats.meanValue).toBeLessThan(6.2)
+  })
+
+  it('is far better at this than leading your lowest card every trick', () => {
+    const naive = finalCardStats(
+      archetypePlayer('cheapest'),
+      heuristicPlayer('tuned', TUNED),
+      1200,
+      xorshift(7),
+    )
+    expect(naive.sevenRate).toBeGreaterThan(0.15)
+    expect(naive.meanValue).toBeGreaterThan(10)
+  })
 })
