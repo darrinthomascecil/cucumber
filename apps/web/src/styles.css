@@ -294,10 +294,17 @@ button:focus-visible {
     'left felt right'
     'left you right';
   justify-content: center;
-  padding: 1rem 1.25rem 2rem;
+  padding: 1.5rem 1.25rem 2rem;
   width: 100%;
   max-width: 98rem;
-  margin: auto;
+  /*
+   * Horizontally centred, anchored to the top. It used to be `margin: auto`,
+   * which centred it vertically too — so every change in height below the
+   * table, a prompt wrapping to two lines or an action row growing, moved the
+   * whole table by half the difference. Nothing below should be able to shift
+   * what is above it.
+   */
+  margin: 0 auto;
 }
 
 .rail {
@@ -618,10 +625,13 @@ button:focus-visible {
   justify-items: center;
 }
 
+/* Two lines' worth, always, so a longer message cannot move the hand. */
 .prompt {
+  display: grid;
+  place-items: center;
   text-align: center;
   font-size: 0.95rem;
-  min-height: 1.4rem;
+  min-height: 2.8rem;
 }
 
 .prompt.forced {
@@ -725,19 +735,22 @@ button:focus-visible {
   transform-origin: bottom center;
 }
 
-.actions {
+.actions,
+.count-choice {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
   flex-wrap: wrap;
+  /* Held open so the row appearing or growing never moves anything. */
+  min-height: 2.9rem;
+}
+
+.actions {
+  gap: 0.75rem;
 }
 
 .count-choice {
-  display: flex;
   gap: 0.4rem;
-  flex-wrap: wrap;
-  justify-content: center;
 }
 
 /* ---------- cards ---------- */
@@ -856,6 +869,12 @@ button.card:disabled {
   cursor: not-allowed;
 }
 
+/* Not your move: the hand is for reading, so it stays legible and still. */
+button.card.plain:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
 /* ---------- dealing ---------- */
 
 @keyframes deal-in {
@@ -869,10 +888,17 @@ button.card:disabled {
   }
 }
 
-.hand.dealing .card,
+/*
+ * Driven by mounting, not by a class. A card animates because it has just
+ * arrived — true of a fresh deal and of the cards you draw in the exchange,
+ * false of every card already in your hand. Gating it on a class meant
+ * discarding three cards re-dealt all thirteen, because the class was derived
+ * from the hand size and flipped back when the hand returned to thirteen.
+ */
+.hand .card,
 .seat-cards .card {
   animation: deal-in 420ms cubic-bezier(0.2, 0.75, 0.3, 1) backwards;
-  animation-delay: calc(var(--i, 0) * 48ms);
+  animation-delay: calc(min(var(--i, 0), 8) * 48ms);
 }
 
 /* Opponents' cards travel a shorter way — they are across the table, not in

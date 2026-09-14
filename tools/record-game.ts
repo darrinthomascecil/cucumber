@@ -88,6 +88,20 @@ async function main(): Promise<void> {
     return Number(text?.replace(/\D/g, '') ?? 0)
   }
 
+  // Nothing on this page should move vertically while the game plays.
+  const settle: { top: number; left: number }[] = []
+  const measure = async () => {
+    const box = await page
+      .evaluate(() => {
+        const el = document.querySelector('.tabletop')
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { top: Math.round(r.top), left: Math.round(r.left) }
+      })
+      .catch(() => null)
+    if (box) settle.push(box)
+  }
+
   const startedHand = await handNumber()
   const started = Date.now()
   let dealtAgain = 0
@@ -105,7 +119,16 @@ async function main(): Promise<void> {
       if (!dealtAgain) dealtAgain = Date.now()
       if (Date.now() - dealtAgain > 26_000) break
     }
+    await measure()
     await page.waitForTimeout(320)
+  }
+
+  if (settle.length > 1) {
+    const tops = settle.map((b) => b.top)
+    const lefts = settle.map((b) => b.left)
+    console.log(
+      `\ntable position over ${settle.length} samples: top ${Math.min(...tops)}..${Math.max(...tops)}, left ${Math.min(...lefts)}..${Math.max(...lefts)}`,
+    )
   }
 
   await context.close()

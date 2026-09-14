@@ -94,6 +94,7 @@ export function Table({
   const onFelt = settled ?? view.trick
   const winner = settled?.successfulSeat ?? view.trick?.successfulSeat ?? null
   // A fresh hand fans out across the table; cards drawn later just appear.
+  // Opponents' cards stagger on a fresh deal; a drawn card just arrives.
   const dealing = !revealing && hand.length === 13 && view.handNumber > 0
 
   const toggle = (id: CardId) =>
@@ -255,10 +256,14 @@ export function Table({
         </div>
 
         {hand.length > 0 ? (
-          <div className={`hand${dealing ? ' dealing' : ''}`}>
+          <div className="hand">
             {hand.map((card, index) => {
               const { tilt, lift, dealFrom } = fan(index)
-              return interactive ? (
+              // Always the same element, whether or not it is your move. It
+              // used to switch to a plain face when you could not act, which
+              // tore down all thirteen cards and dealt them again — on every
+              // turn boundary.
+              return (
                 <CardButton
                   key={card}
                   id={card}
@@ -268,13 +273,10 @@ export function Table({
                   dealFrom={dealFrom}
                   selected={selected.includes(card)}
                   advised={advised.has(card)}
-                  disabled={isDisabled(card)}
+                  plain={!interactive}
+                  disabled={!interactive || isDisabled(card)}
                   onToggle={toggle}
                 />
-              ) : (
-                <span className="card-slot" key={card}>
-                  <CardFace id={card} index={index} tilt={tilt} lift={lift} dealFrom={dealFrom} />
-                </span>
               )
             })}
           </div>

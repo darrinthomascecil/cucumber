@@ -43,6 +43,11 @@ interface ButtonProps extends Props {
   disabled: boolean
   /** Marked by the advisor as its first choice. */
   advised?: boolean
+  /**
+   * Not your move. Still a button, so the element never changes type and the
+   * card is never torn down and rebuilt — it just stops responding.
+   */
+  plain?: boolean
   onToggle: (id: CardId) => void
 }
 
@@ -51,6 +56,7 @@ export function CardButton({
   selected,
   disabled,
   advised,
+  plain,
   index = 0,
   tilt = 0,
   lift = 0,
@@ -65,6 +71,7 @@ export function CardButton({
     card.suit ? '' : 'joker',
     selected ? 'selected' : '',
     advised && !disabled ? 'advised' : '',
+    plain ? 'plain' : '',
   ]
   return (
     <button
