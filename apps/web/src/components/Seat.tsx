@@ -44,9 +44,15 @@ export function Seat({ player, place, acting, dealing, finalCard, dealAnimation 
       <div className="seat-plate">
         <span className={`dot${player.connected === 'ONLINE' ? '' : ' off'}`} />
         <span className="seat-name">{player.displayName}</span>
-        {dealing ? <span className="chip">D</span> : null}
         <span className="seat-score">{player.score}</span>
       </div>
+
+      {/* The dealer button sits on the felt in front of them, as it would. */}
+      {dealing ? (
+        <span className="dealer-button" title={`${player.displayName} deals`} aria-label="Dealer">
+          D
+        </span>
+      ) : null}
     </div>
   )
 }

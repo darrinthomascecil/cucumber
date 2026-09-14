@@ -124,6 +124,29 @@ export function Table({
 
   return (
     <div className="table">
+      <aside className="rail rail-left">
+        {view.lastTrick && view.phase === 'TRICK_PLAY' && !settled ? (
+          <div className="last-trick">
+            <span className="felt-title">Last trick</span>
+            {view.lastTrick.plays.map((play, index) => (
+              <span
+                className={`last-play${play.successful ? '' : ' failed'}${
+                  view.lastTrick?.successfulSeat === play.seat && play.successful ? ' won' : ''
+                }`}
+                key={`${play.seat}-${index}`}
+              >
+                <span className="last-who">{nameOf(view, play.seat)}</span>
+                <span className="last-cards">
+                  {play.cards.map((card) => (
+                    <CardFace key={card} id={card} small />
+                  ))}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </aside>
+
       <div className="tabletop">
         <div className="felt-rim" />
         <Seat
@@ -207,33 +230,14 @@ export function Table({
           {prompt.message}
         </div>
 
-        {view.lastTrick && view.phase === 'TRICK_PLAY' && !settled ? (
-          <div className="last-trick">
-            <span className="felt-title">Last trick</span>
-            {view.lastTrick.plays.map((play, index) => (
-              <span className="last-play" key={`${play.seat}-${index}`}>
-                <span>{nameOf(view, play.seat)}</span>
-                {play.cards.map((card) => (
-                  <CardFace key={card} id={card} small />
-                ))}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {advice ? (
-          <Advisor
-            advice={advice}
-            thinking={advisorThinking}
-            milliseconds={advisorMilliseconds}
-            worlds={advisorWorlds}
-          />
-        ) : null}
-
         <div className="you-plate">
+          {view.dealerSeat === mySeat ? (
+            <span className="dealer-button inline" title="You deal" aria-label="Dealer">
+              D
+            </span>
+          ) : null}
           <span className={`dot${connected ? '' : ' off'}`} />
           <span className="seat-name">{view.you.displayName}</span>
-          {view.dealerSeat === mySeat ? <span className="chip">D</span> : null}
           <span className="seat-score">{view.you.score}</span>
           {connected ? null : <span className="reconnecting">reconnecting…</span>}
         </div>
@@ -279,6 +283,17 @@ export function Table({
           />
         )}
       </div>
+
+      <aside className="rail rail-right">
+        {advice ? (
+          <Advisor
+            advice={advice}
+            thinking={advisorThinking}
+            milliseconds={advisorMilliseconds}
+            worlds={advisorWorlds}
+          />
+        ) : null}
+      </aside>
     </div>
   )
 }

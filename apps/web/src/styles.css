@@ -279,13 +279,65 @@ button:focus-visible {
 
 /* ---------- the table ---------- */
 
+/*
+ * Three columns: the record of the last trick, the table itself, and the
+ * advisor. The rails are the same order of width on both sides so the table
+ * stays optically centred whether or not they have anything in them.
+ */
 .table {
   display: grid;
-  gap: 1rem;
+  gap: 1rem 1.5rem;
+  /* Equal rails, so the table is centred whether or not they hold anything. */
+  grid-template-columns: minmax(0, 20rem) minmax(0, 58rem) minmax(0, 20rem);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'left felt right'
+    'left you right';
+  justify-content: center;
   padding: 1rem 1.25rem 2rem;
-  max-width: 62rem;
   width: 100%;
+  max-width: 98rem;
   margin: auto;
+}
+
+.rail {
+  align-self: start;
+  min-width: 0;
+}
+
+.rail-left {
+  grid-area: left;
+}
+
+.rail-right {
+  grid-area: right;
+  position: sticky;
+  top: 1rem;
+}
+
+.tabletop {
+  grid-area: felt;
+}
+
+.you {
+  grid-area: you;
+}
+
+/* One column once the rails would squeeze the table. */
+@media (max-width: 1220px) {
+  .table {
+    grid-template-columns: minmax(0, 62rem);
+    grid-template-areas:
+      'felt'
+      'right'
+      'you'
+      'left';
+    justify-content: center;
+  }
+
+  .rail-right {
+    position: static;
+  }
 }
 
 /*
@@ -377,17 +429,46 @@ button:focus-visible {
   color: var(--ink-dim);
 }
 
-.chip {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  width: 1.1rem;
-  height: 1.1rem;
+/*
+ * The dealer button. A real one is a chunky disc that sits on the felt in
+ * front of whoever is dealing, and you can see it from across the table —
+ * which is the whole job, so it is sized to be seen rather than tucked into
+ * a name plate.
+ */
+.dealer-button {
+  position: absolute;
+  top: 58%;
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: #e8e2d4;
-  color: #24281f;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #2a2f26;
+  background: radial-gradient(120% 120% at 35% 25%, #fffdf6 0%, #e6dfcd 60%, #cdc4ad 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(42, 47, 38, 0.25),
+    0 4px 10px rgba(0, 0, 0, 0.5);
+  z-index: 4;
+}
+
+.seat-left .dealer-button {
+  right: 100%;
+  margin-right: 0.5rem;
+}
+
+.seat-right .dealer-button {
+  left: 100%;
+  margin-left: 0.5rem;
+}
+
+.dealer-button.inline {
+  position: static;
+  width: 1.4rem;
+  height: 1.4rem;
+  font-size: 0.72rem;
 }
 
 .dot {
@@ -566,20 +647,53 @@ button:focus-visible {
 }
 
 .last-trick {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem 0.9rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  opacity: 0.5;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .last-play {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.5rem;
   font-size: 0.78rem;
   color: var(--ink-dim);
+  opacity: 0.75;
+}
+
+.last-play.won {
+  opacity: 1;
+  color: var(--ink);
+}
+
+.last-play.failed .last-cards {
+  filter: grayscale(0.5);
+}
+
+.last-who {
+  width: 3.6rem;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.last-cards {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+/* On one column the record lies flat again rather than stacking. */
+@media (max-width: 1220px) {
+  .last-trick {
+    grid-auto-flow: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.9rem;
+  }
 }
 
 .felt-title {
@@ -889,13 +1003,13 @@ button.card:disabled {
 .advisor {
   /* Reserved so the panel changing size does not shove the table about. */
   min-height: 9.5rem;
+  max-width: none;
   border: 1px solid rgba(127, 209, 138, 0.28);
   border-radius: 10px;
   background: rgba(63, 143, 74, 0.08);
   padding: 0.75rem 0.9rem;
   display: grid;
   gap: 0.65rem;
-  max-width: 34rem;
   width: 100%;
   margin: 0 auto;
 }
@@ -982,7 +1096,7 @@ button.card:disabled {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.35rem 0.9rem;
+  gap: 0.4rem 0.7rem;
   border-top: 1px solid var(--line);
   padding-top: 0.5rem;
 }
