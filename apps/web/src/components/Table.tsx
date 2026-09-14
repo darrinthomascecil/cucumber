@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { beatsTarget, leadGroup, sortByTrickStrength } from '@cucumber/game-engine'
-import type { CardId, PlayerView, Seat } from '@cucumber/shared'
+import { leftOf, type CardId, type PlayerView, type Seat as SeatNumber } from '@cucumber/shared'
 import type { Advice } from '@cucumber/strategy'
 import { Advisor } from './Advisor.tsx'
-import { CardButton, CardFace } from './Card.tsx'
+import { CardBack, CardButton, CardFace } from './Card.tsx'
 import { Reveal } from './Reveal.tsx'
+import { Seat } from './Seat.tsx'
 
 interface Props {
   view: PlayerView
@@ -24,6 +25,8 @@ type Command =
   | { type: 'PLAY_CARDS'; cards: CardId[] }
   | { type: 'START_NEXT_MATCH' }
 
+type Place = 'me' | 'left' | 'right'
+
 export function Table({
   view,
   connected,
@@ -35,7 +38,6 @@ export function Table({
 }: Props) {
   const [selected, setSelected] = useState<CardId[]>([])
 
-  // Any change of turn or hand invalidates a half-made selection.
   useEffect(() => {
     setSelected([])
   }, [view.version, view.prompt.kind])
@@ -43,6 +45,20 @@ export function Table({
   const hand = useMemo(() => sortByTrickStrength(view.you.hand), [view.you.hand])
   const prompt = view.prompt
   const target = view.trick?.targetCards ?? []
+
+  // You always sit at the bottom. The player who acts after you — the one the
+  // rules call your left — sits on your left, so the turn travels the way the
+  // game describes it.
+  const mySeat = view.you.seat
+  const leftSeat = leftOf(mySeat)
+  const rightSeat = leftOf(leftSeat)
+  const playerAt = (seat: SeatNumber) => view.players.find((player) => player.seat === seat)!
+  const placeOf = (seat: SeatNumber): Place =>
+    seat === mySeat ? 'me' : seat === leftSeat ? 'left' : 'right'
+
+  const revealing = view.phase === 'FINAL_REVEAL' || view.phase === 'MATCH_OVER'
+  // A fresh hand fans out across the table; cards drawn later just appear.
+  const dealing = !revealing && hand.length === 13 && view.handNumber > 0
 
   const toggle = (id: CardId) =>
     setSelected((current) =>
@@ -54,112 +70,106 @@ export function Table({
     if (!isSelectable(view, id)) return true
     if (selected.includes(id)) return false
     if (limit !== null && selected.length >= limit) return true
-    // A lead must be all one rank, so once a rank is chosen the rest go dim.
     if (prompt.kind === 'LEAD' && selected.length > 0) {
       return leadGroup(id) !== leadGroup(selected[0] as CardId)
     }
     return false
   }
 
-  const others = view.players.filter((player) => player.seat !== view.you.seat)
-  const revealing = view.phase === 'FINAL_REVEAL' || view.phase === 'MATCH_OVER'
-  // The advisor's first choice, marked on the cards themselves. Suppressed
-  // once you start choosing so it never argues with your own selection.
   const advised = new Set(selected.length === 0 ? (advice?.suggestions[0]?.cards ?? []) : [])
+  const interactive = takesCards(prompt.kind)
+
+  // Cards fan around an arc, as they would in a hand held up in front of you.
+  const step = Math.min(3.2, 40 / Math.max(1, hand.length))
+  const fan = (index: number) => {
+    const tilt = (index - (hand.length - 1) / 2) * step
+    return { tilt, lift: Math.abs(tilt) * 1.1 }
+  }
 
   return (
     <div className="table">
-      <div className="opponents">
-        {others.map((player) => (
-          <div
-            className={`opponent${view.actionSeat === player.seat ? ' acting' : ''}`}
-            key={player.seat}
-          >
-            <div className="opponent-head">
-              <span className={`dot${player.connected === 'ONLINE' ? '' : ' off'}`} />
-              <span className="opponent-name">{player.displayName}</span>
-              {view.dealerSeat === player.seat ? <span className="tag">Deals</span> : null}
-              {player.ready && view.phase === 'LOBBY' ? <span className="tag ready">Ready</span> : null}
-            </div>
-            <div className="opponent-meta">
-              <span>
-                {player.cardCount} card{player.cardCount === 1 ? '' : 's'}
-              </span>
-              <span>Score {player.score}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {revealing ? (
-        <Reveal
-          view={view}
-          onReady={() => onCommand({ type: 'READY', ready: true })}
-          onNextMatch={() => onCommand({ type: 'START_NEXT_MATCH' })}
+      <div className="tabletop">
+        <div className="felt-rim" />
+        <Seat
+          player={playerAt(leftSeat)}
+          place="left"
+          acting={view.actionSeat === leftSeat}
+          dealing={view.dealerSeat === leftSeat}
+          finalCard={revealing ? (view.handResult?.finalCards[leftSeat] ?? null) : null}
+          dealAnimation={dealing}
         />
-      ) : (
-        <div className="felt">
-          <div className="felt-title">
-            {view.phase === 'LOBBY'
-              ? 'Waiting to start'
-              : `Hand ${view.handNumber} · ${view.stockCount} in stock`}
-          </div>
+        <Seat
+          player={playerAt(rightSeat)}
+          place="right"
+          acting={view.actionSeat === rightSeat}
+          dealing={view.dealerSeat === rightSeat}
+          finalCard={revealing ? (view.handResult?.finalCards[rightSeat] ?? null) : null}
+          dealAnimation={dealing}
+        />
 
-          {view.trick && view.trick.plays.length > 0 ? (
-            <div className="plays">
-              {view.trick.plays.map((play, index) => {
+        <div className="centre">
+          {revealing ? (
+            <Reveal
+              view={view}
+              onReady={() => onCommand({ type: 'READY', ready: true })}
+              onNextMatch={() => onCommand({ type: 'START_NEXT_MATCH' })}
+            />
+          ) : (
+            <>
+              {view.stockCount > 0 ? (
+                <div className="stock" aria-label={`${view.stockCount} cards left in the stock`}>
+                  <CardBack small />
+                  <CardBack small />
+                  <span className="stock-count">{view.stockCount}</span>
+                </div>
+              ) : null}
+
+              {(view.trick?.plays ?? []).map((play, index) => {
+                const place = placeOf(play.seat)
                 const isTarget = view.trick?.successfulSeat === play.seat && play.successful
                 return (
                   <div
-                    className={`play-row${isTarget ? ' target' : ''}${play.successful ? '' : ' failed'}`}
-                    key={`${play.seat}-${index}`}
+                    className={`play play-${place}${play.successful ? '' : ' failed'}${
+                      isTarget ? ' target' : ''
+                    }`}
+                    key={`${play.seat}-${index}-${play.cards.join('')}`}
                   >
-                    <span className="play-who">
-                      {nameOf(view, play.seat)}
-                      {play.successful ? '' : ' · could not meet'}
-                    </span>
-                    {play.cards.map((card) => (
-                      <CardFace key={card} id={card} small />
+                    {play.cards.map((card, at) => (
+                      <CardFace key={card} id={card} index={at} />
                     ))}
+                    {play.successful ? null : <span className="play-note">could not meet</span>}
                   </div>
                 )
               })}
-            </div>
-          ) : (
-            <p style={{ margin: 0, color: 'var(--ink-dim)' }}>
-              {view.phase === 'TRICK_PLAY' ? leadLine(view) : 'No cards on the table yet.'}
-            </p>
+
+              {view.phase === 'LOBBY' ? (
+                <p className="centre-note">Waiting for the table.</p>
+              ) : view.trick && view.trick.plays.length === 0 ? (
+                <p className="centre-note">{leadLine(view)}</p>
+              ) : null}
+            </>
           )}
+        </div>
+      </div>
 
-          {view.lastTrick && view.phase === 'TRICK_PLAY' ? (
-            <div className="last-trick">
-              <span className="felt-title">Last trick</span>
-              {view.lastTrick.plays.map((play, index) => (
-                <span className="last-play" key={`${play.seat}-${index}`}>
-                  <span>{nameOf(view, play.seat)}</span>
-                  {play.cards.map((card) => (
-                    <CardFace key={card} id={card} small />
-                  ))}
-                </span>
-              ))}
-            </div>
-          ) : null}
+      <div className="you">
+        <div className={`prompt${prompt.kind === 'FORCED_LOW' ? ' forced' : ''}`}>
+          {prompt.message}
+        </div>
 
-          <div className={`prompt${prompt.kind === 'FORCED_LOW' ? ' forced' : ''}`}>
-            {prompt.message}
+        {view.lastTrick && view.phase === 'TRICK_PLAY' ? (
+          <div className="last-trick">
+            <span className="felt-title">Last trick</span>
+            {view.lastTrick.plays.map((play, index) => (
+              <span className="last-play" key={`${play.seat}-${index}`}>
+                <span>{nameOf(view, play.seat)}</span>
+                {play.cards.map((card) => (
+                  <CardFace key={card} id={card} small />
+                ))}
+              </span>
+            ))}
           </div>
-        </div>
-      )}
-
-      <div className="hand-area">
-        <div className="you-line">
-          <span>
-            You · {view.you.displayName}
-            {view.dealerSeat === view.you.seat ? ' · dealing' : ''}
-          </span>
-          <span>Score {view.you.score}</span>
-          {connected ? null : <span style={{ color: 'var(--danger)' }}>Reconnecting…</span>}
-        </div>
+        ) : null}
 
         {advice ? (
           <Advisor
@@ -170,28 +180,43 @@ export function Table({
           />
         ) : null}
 
+        <div className="you-plate">
+          <span className={`dot${connected ? '' : ' off'}`} />
+          <span className="seat-name">{view.you.displayName}</span>
+          {view.dealerSeat === mySeat ? <span className="chip">D</span> : null}
+          <span className="seat-score">{view.you.score}</span>
+          {connected ? null : <span className="reconnecting">reconnecting…</span>}
+        </div>
+
         {hand.length > 0 ? (
-          <div className="hand">
-            {hand.map((card) =>
-              // While it is not your move the hand is for reading, not
-              // clicking — show it plainly rather than greyed out.
-              takesCards(prompt.kind) ? (
+          <div className={`hand${dealing ? ' dealing' : ''}`}>
+            {hand.map((card, index) => {
+              const { tilt, lift } = fan(index)
+              return interactive ? (
                 <CardButton
                   key={card}
                   id={card}
+                  index={index}
+                  tilt={tilt}
+                  lift={lift}
                   selected={selected.includes(card)}
                   advised={advised.has(card)}
                   disabled={isDisabled(card)}
                   onToggle={toggle}
                 />
               ) : (
-                <CardFace key={card} id={card} />
-              ),
-            )}
+                <span
+                  className="card-slot"
+                  key={card}
+                  style={{ transform: `rotate(${tilt}deg) translateY(${lift}px)` }}
+                >
+                  <CardFace id={card} index={index} />
+                </span>
+              )
+            })}
           </div>
         ) : null}
 
-        {/* During the reveal the only control belongs to the reveal itself. */}
         {revealing ? null : (
           <Actions
             view={view}
@@ -312,8 +337,6 @@ function Actions({
     case 'FOLLOW': {
       const required = prompt.requiredCards ?? 0
       const complete = selected.length === required
-      // A hint, not a gate — the server decides, and the player picks which
-      // qualifying combination to spend (spec §51).
       const wins = complete && beatsTarget(selected, target)
       return (
         <div className="actions">
@@ -326,9 +349,7 @@ function Actions({
             Play {selected.length}/{required}
           </button>
           {complete && !wins ? (
-            <span style={{ color: 'var(--warn)', fontSize: '0.85rem' }}>
-              That does not meet the current play.
-            </span>
+            <span className="warn-note">That does not meet the current play.</span>
           ) : null}
         </div>
       )
@@ -360,7 +381,7 @@ function leadLine(view: PlayerView): string {
   return leader === view.you.seat ? 'You lead.' : `${nameOf(view, leader)} leads.`
 }
 
-function nameOf(view: PlayerView, seat: Seat): string {
+function nameOf(view: PlayerView, seat: SeatNumber): string {
   const player = view.players.find((candidate) => candidate.seat === seat)
   if (!player) return `Seat ${seat}`
   return player.seat === view.you.seat ? 'You' : player.displayName
