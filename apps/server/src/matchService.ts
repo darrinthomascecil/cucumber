@@ -52,6 +52,13 @@ function toJson(state: MatchState): Prisma.InputJsonValue {
  */
 export async function joinRoom(userId: string): Promise<Room> {
   return db().$transaction(async (tx) => {
+    // Seating is read-then-write: find the open match, find a free seat, take
+    // it. Two people arriving together both read the same free seat and the
+    // second one hits the unique constraint. Rather than retry a collision,
+    // take a lock for the length of the transaction so joins queue up — this
+    // happens once per player per match and is never contended in play.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(9021, 1)`
+
     const existing = await tx.match.findFirst({
       where: { status: { in: ['LOBBY', 'ACTIVE'] } },
       orderBy: { createdAt: 'asc' },

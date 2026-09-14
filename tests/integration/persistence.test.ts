@@ -116,6 +116,29 @@ describe('sign-in and seating', () => {
     expect(code).toBe(4401)
   })
 
+  it('seats three players who all arrive at the same instant', async () => {
+    // Seating reads the free seats and then takes one. Three simultaneous
+    // arrivals used to read the same free seat and collide on the unique
+    // constraint, which surfaced as a 500 rather than a seat.
+    const cookies = await Promise.all(
+      people.map(async (person) => {
+        const token = await seedInvitee(prisma, person.email, person.name)
+        return redeem(token)
+      }),
+    )
+    const rooms = await Promise.all(cookies.map((cookie) => joinRoom(cookie)))
+    const seats = rooms.map(
+      (room, index) => room.seats.find((seat) => seat.userId && seat.displayName === people[index]!.name)?.seat,
+    )
+    // Three different seats, one match, nobody turned away.
+    expect(new Set(seats).size).toBe(3)
+    expect(seats.every((seat) => seat !== undefined)).toBe(true)
+    expect(new Set(rooms.map((room) => room.matchId)).size).toBe(1)
+    // Whoever got the lock last is the one who sees a full table — and with
+    // three arriving together, that is not necessarily the last in this array.
+    expect(rooms.filter((room) => room.stage === 'MATCH')).toHaveLength(1)
+  }, 120_000)
+
   it('waits for three players before dealing', async () => {
     const first = await seedInvitee(prisma, 'alice@example.com', 'Alice')
     const cookie = await redeem(first)
