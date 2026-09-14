@@ -27,6 +27,17 @@ type Command =
 
 type Place = 'me' | 'left' | 'right'
 
+/**
+ * How long a won trick stays on the felt before it is gathered up.
+ *
+ * It has to be there at all — the engine sweeps a trick the instant the third
+ * card lands, so without this the last player's card is never drawn once. But
+ * it should not still be sitting there while you think about your lead, so it
+ * holds briefly and then fades rather than waiting to be replaced.
+ */
+const TRICK_HOLD_MS = 250
+const TRICK_FADE_MS = 300
+
 export function Table({
   view,
   connected,
@@ -65,7 +76,21 @@ export function Table({
    * it fell until somebody leads the next one, so show it that way: while the
    * new trick is empty, the felt still holds the one just finished.
    */
-  const settled = view.phase === 'TRICK_PLAY' && view.trick?.plays.length === 0 ? view.lastTrick : null
+  const finished =
+    view.phase === 'TRICK_PLAY' && view.trick?.plays.length === 0 ? view.lastTrick : null
+  const finishedAt = finished ? view.version : null
+  const [gatheredAt, setGatheredAt] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (finishedAt === null) return
+    const timer = window.setTimeout(
+      () => setGatheredAt(finishedAt),
+      TRICK_HOLD_MS + TRICK_FADE_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [finishedAt])
+
+  const settled = finished && gatheredAt !== finishedAt ? finished : null
   const onFelt = settled ?? view.trick
   const winner = settled?.successfulSeat ?? view.trick?.successfulSeat ?? null
   // A fresh hand fans out across the table; cards drawn later just appear.
@@ -135,33 +160,41 @@ export function Table({
                 </div>
               ) : null}
 
-              {(onFelt?.plays ?? []).map((play, index) => {
-                const place = placeOf(play.seat)
-                const isTarget = winner === play.seat && play.successful
-                return (
-                  <div
-                    className={`play play-${place}${play.successful ? '' : ' failed'}${
-                      isTarget ? ' target' : ''
-                    }${settled ? ' settled' : ''}`}
-                    key={`${play.seat}-${index}-${play.cards.join('')}`}
-                  >
-                    {play.cards.map((card, at) => (
-                      <CardFace key={card} id={card} index={at} />
-                    ))}
-                    {play.successful ? null : <span className="play-note">could not meet</span>}
-                  </div>
-                )
-              })}
+              {wrap(
+                settled,
+                finishedAt,
+                <>
+                  {(onFelt?.plays ?? []).map((play, index) => {
+                    const place = placeOf(play.seat)
+                    const isTarget = winner === play.seat && play.successful
+                    return (
+                      <div
+                        className={`play play-${place}${play.successful ? '' : ' failed'}${
+                          isTarget ? ' target' : ''
+                        }`}
+                        key={`${play.seat}-${index}-${play.cards.join('')}`}
+                      >
+                        {play.cards.map((card, at) => (
+                          <CardFace key={card} id={card} index={at} />
+                        ))}
+                        {play.successful ? null : <span className="play-note">could not meet</span>}
+                      </div>
+                    )
+                  })}
+
+                  {settled ? (
+                    <p className="centre-note settled-note">
+                      {winner === mySeat
+                        ? 'You take it'
+                        : `${nameOf(view, winner ?? mySeat)} takes it`}
+                    </p>
+                  ) : null}
+                </>,
+              )}
 
               {view.phase === 'LOBBY' ? (
                 <p className="centre-note">Waiting for the table.</p>
-              ) : settled ? (
-                <p className="centre-note settled-note">
-                  {winner === mySeat ? 'You take it' : `${nameOf(view, winner ?? mySeat)} takes it`}
-                  {' — '}
-                  {leadLine(view).toLowerCase()}
-                </p>
-              ) : view.trick && view.trick.plays.length === 0 ? (
+              ) : !settled && view.trick && view.trick.plays.length === 0 ? (
                 <p className="centre-note">{leadLine(view)}</p>
               ) : null}
             </>
@@ -391,6 +424,16 @@ function Actions({
     default:
       return null
   }
+}
+
+/** The finished trick fades as one thing, so it is wrapped as one thing. */
+function wrap(settled: unknown, at: number | null, children: React.ReactNode): React.ReactNode {
+  if (!settled) return children
+  return (
+    <div className="settled-trick" key={`settled-${at}`}>
+      {children}
+    </div>
+  )
 }
 
 function leadLine(view: PlayerView): string {

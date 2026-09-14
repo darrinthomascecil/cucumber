@@ -453,9 +453,26 @@ button:focus-visible {
   transform: translate(-50%, -50%) translate(7.2rem, -1.6rem) rotate(8deg);
 }
 
-/* A trick that has been won but not yet gathered up. */
-.play.settled {
-  opacity: 0.85;
+/*
+ * A won trick, waiting to be gathered. It holds long enough to be read and
+ * then goes, rather than sitting on the felt while you think about your lead.
+ * Keep these in step with TRICK_HOLD_MS and TRICK_FADE_MS in Table.tsx.
+ */
+.settled-trick {
+  position: absolute;
+  inset: 0;
+  animation: settle-away 550ms ease-in forwards;
+}
+
+@keyframes settle-away {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
 }
 
 .play.failed {
