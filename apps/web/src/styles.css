@@ -1,5 +1,7 @@
 /* Cucumber — one deliberate look: a dim table, bright cards. */
 :root {
+  /* The room the table sits in: one flat colour, no gradient. */
+  --page: #0e2115;
   --felt: #17311f;
   --felt-deep: #0e2115;
   --felt-edge: #0a1a10;
@@ -42,9 +44,7 @@ html {
 
 body {
   margin: 0;
-  background: radial-gradient(120% 90% at 50% 0%, var(--felt) 0%, var(--felt-deep) 60%, var(--felt-edge) 100%);
-  /* Pinned to the viewport so it never repaints as content height changes. */
-  background-attachment: fixed;
+  background: var(--page);
   color: var(--ink);
   font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
