@@ -41,9 +41,23 @@ export function settleHand(
  * *not* losing the match. Only the highest scorer loses, so what matters is
  * the gap to the others, not the absolute total.
  *
- * The shape was chosen by grid search against play strength, not by taste:
- * `pnpm self-play continuation` re-runs it. Flattening the curve (temperature
- * 16) costs about 8 points of loss rate, so the guess does real work.
+ * The shape was chosen by grid search against play strength, not by taste.
+ * Flattening the curve (temperature 16) costs about 8 points of loss rate, so
+ * the guess does real work.
+ *
+ * Two structural limits, both measured rather than suspected:
+ *
+ *  - It is invariant to adding a constant to every score. The shift cancels in
+ *    the normalisation, so [2,5,8] and [12,15,18] return identical values
+ *    despite one being three points from the end of the match. Simulated
+ *    continuations put the trailing seat at 29.5% and 11.4% respectively; the
+ *    model says 34.2% for both.
+ *  - The three survival values always sum to exactly 2, i.e. exactly one loser.
+ *    Ties and multiple instant losses break that: from [19,19,19] the model
+ *    gives every seat 66.7% where simulation gives about 54.6%.
+ *
+ * Refitting `temperature` and `headroom` cannot remove either — they are
+ * properties of the functional form. See PROPOSAL.md.
  */
 export interface ContinuationModel {
   /** Scale of the logistic in points. */

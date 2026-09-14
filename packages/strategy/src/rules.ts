@@ -87,13 +87,20 @@ export function leadCounts(lead: Lead): Counts {
 
 /**
  * Every distinct multiset of `n` cards from the hand that meets the target.
- * Enumerated from the top down so the strongest, least interesting answers
- * appear first and the cap (if hit) trims from the expensive tail.
+ *
+ * The default limit is chosen so it can never bind. A target is at most six
+ * cards (the largest lead possible is six 7/Jokers) and a hand holds at most
+ * thirteen cards, so the most distinct qualifying multisets any legal position
+ * can offer is C(13,6) = 1716. The previous default of 400 silently truncated:
+ * a hand of thirteen distinct cards answering a four-card target has 715
+ * responses and lost 315 of them, so `maxActions` could not reach plays that
+ * enumeration had already thrown away. Truncation here is invisible to the
+ * caller, which is exactly why it must not happen by default.
  */
 export function qualifyingPlays(
   hand: Counts,
   target: readonly CardClass[],
-  limit = 400,
+  limit = 4096,
 ): Counts[] {
   const n = target.length
   const results: Counts[] = []

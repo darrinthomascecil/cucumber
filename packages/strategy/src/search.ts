@@ -30,8 +30,16 @@ export interface SearchOptions {
   worlds?: number
   weights?: Weights
   continuation?: ContinuationModel
-  /** Cap on actions evaluated; the rest are dropped by heuristic score. */
+  /** Cap on actions given the full world budget. */
   maxActions?: number
+  /**
+   * Whether the cut down to `maxActions` is made by a cheap rollout screen
+   * rather than by heuristic score. On by default; the switch exists so the
+   * difference can be measured rather than assumed.
+   */
+  screen?: boolean
+  /** Rollouts to spend screening, shared across every action. */
+  screenBudget?: number
   /**
    * Whether to narrow the imagined deals using what the other players have
    * publicly failed to do. On by default; the switch exists so the gain can
@@ -105,17 +113,38 @@ export function searchActions(
   ])
   let actions = candidatesFor(probe, info.seat)
   const context = { hand: info.hand, scores: info.scores, seat: info.seat }
-  if (actions.length > maxActions) {
-    actions = [...actions]
-      .sort(
-        (a, b) =>
-          scoreCandidate(b, context, weights) - scoreCandidate(a, context, weights),
-      )
-      .slice(0, maxActions)
-  }
 
   const policy: Policy = heuristicPolicy(weights)
   const policies: [Policy, Policy, Policy] = [policy, policy, policy]
+
+  /*
+   * Cutting the action list by heuristic score asks the heuristic to rank
+   * exactly the plays it is worst at ranking. In a measured position holding
+   * two 7/Jokers at 20 points, the heuristic ranked "play both 7/Jokers" 17th
+   * of 18 and the cut removed it — while a rollout put it top at 43.5%, nine
+   * points clear of the best survivor. The `high` weight that makes it hoard
+   * those cards is the same weight that hides the escape.
+   *
+   * So screen with the objective instead: play every action out over a small
+   * shared pool of worlds, and give the full world budget to the survivors.
+   * The screen is noisy, but it is noisy about the right quantity.
+   */
+  if (actions.length > maxActions) {
+    if (options.screen === false) {
+      actions = [...actions]
+        .sort(
+          (a, b) =>
+            scoreCandidate(b, context, weights) - scoreCandidate(a, context, weights),
+        )
+        .slice(0, maxActions)
+    } else {
+      actions = screenActions(actions, info, trick, random, policies, {
+        budget: options.screenBudget ?? 1600,
+        keep: maxActions,
+        continuation: options.continuation,
+      })
+    }
+  }
   const totals = new Float64Array(actions.length)
 
   // Once the hands are short enough, stop guessing at each imagined deal and
@@ -154,6 +183,43 @@ export function searchActions(
   }))
   values.sort((a, b) => b.value - a.value)
   return { actions: values, worlds, best: values[0]?.value ?? 0 }
+}
+
+/**
+ * Rank every action by a short rollout and keep the best `keep`.
+ *
+ * The world count is chosen so the total work is bounded no matter how many
+ * legal answers a wide target produces: a handful of worlds each when there
+ * are hundreds of actions, a few dozen when there are twenty. Every action
+ * sees the same worlds, so the ranking is far steadier than the individual
+ * estimates behind it.
+ */
+function screenActions(
+  actions: Candidate[],
+  info: InfoSet,
+  trick: TrickContext,
+  random: Random,
+  policies: [Policy, Policy, Policy],
+  options: { budget: number; keep: number; continuation?: ContinuationModel },
+): Candidate[] {
+  const worlds = Math.max(4, Math.min(32, Math.floor(options.budget / actions.length)))
+  const totals = new Float64Array(actions.length)
+  for (let w = 0; w < worlds; w++) {
+    const hands = sampleWorld(info, random)
+    const base = buildSim(info, trick, hands)
+    for (let a = 0; a < actions.length; a++) {
+      const sim = cloneSim(base)
+      commit(sim, info.seat, actions[a]!)
+      playOut(sim, policies)
+      const outcome = settleHand(sim.scores, finalClasses(sim))
+      totals[a]! += handValue(outcome, info.seat, options.continuation)
+    }
+  }
+  return actions
+    .map((candidate, index) => ({ candidate, value: totals[index]! }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, options.keep)
+    .map((entry) => entry.candidate)
 }
 
 /**

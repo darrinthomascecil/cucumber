@@ -18,15 +18,22 @@ import {
  * A diagnostic, and only a diagnostic: a player that is shown every hand at
  * the table.
  *
- * It exists to answer one question — how much is the hidden information
- * actually worth? The gap between this cheat and the honest search is a
- * ceiling on what any amount of better reasoning about unseen cards could
- * buy. It is never reachable from the advisor, which is handed a PlayerView
+ * It exists to answer one question — what is it worth to be *told* the hidden
+ * cards? It is never reachable from the advisor, which is handed a PlayerView
  * and has nothing to cheat with.
  *
- * Because the rollout policy is deterministic, this player's evaluation of
- * each candidate is exact given how the others will play: it is the best
- * response to heuristic opponents under perfect information.
+ * Read it narrowly. Two earlier claims here were wrong and an external review
+ * caught both:
+ *
+ *  - This is not "the best response under perfect information". It picks its
+ *    current move by trying each candidate, but every move after that — its
+ *    own included — is played by the same heuristic as everyone else. It is
+ *    one ply of search with a heuristic tail, not a solve.
+ *  - The gap between this and the honest search is therefore not a ceiling on
+ *    what better reasoning could buy. It does not divide the honest player's
+ *    losses into a reducible part and an irreducible one, and it inherits the
+ *    honest player's enumerator and continuation model besides. No lower bound
+ *    on honest play follows from it.
  */
 export function oraclePlayer(name: string, weights: Weights, exchange = 3): {
   player: Player

@@ -1,4 +1,4 @@
-import { CLASS_VALUE, HIGH_CLASS, totalOf, type Counts } from './classes.ts'
+import { CLASS_COUNT, CLASS_VALUE, HIGH_CLASS, totalOf, type Counts } from './classes.ts'
 import type { Candidate, Policy, PolicyView } from './sim.ts'
 
 /**
@@ -25,8 +25,11 @@ export interface Weights {
   /** Preference for leading several cards at once. */
   width: number
   /** Shape of the urgency curve — how sharply strength stops mattering as the
-   *  hand runs down. 1 is linear; higher means strength matters right up to
-   *  the end, lower means it stops mattering early. */
+   *  hand runs down. Urgency is `remaining^gamma` with `remaining` in [0,1],
+   *  so gamma above 1 sits *below* the linear curve everywhere and falls away
+   *  fastest at the end: strength stops mattering EARLIER, not later. This
+   *  comment used to claim the opposite, and STRATEGY.md drew a conclusion
+   *  from the reversed reading. */
   gamma: number
   /** Late-hand panic: extra appetite for shedding a 7 or Joker as the reveal
    *  approaches, when there is no longer time to place it safely. */
@@ -119,8 +122,42 @@ export function scoreCandidate(
     if (c === HIGH_CLASS) score += n * (weights.high + weights.panic * (1 - urgency))
   }
   if (candidate.isLead) score += weights.width * (cards - 1)
+
+  /*
+   * The last decision is a different question from every one before it.
+   *
+   * Once a play leaves a single card, that card is the hand's score. Without
+   * this the tuned weights will lead the Ace from [Ace, 7] to shed the points,
+   * finish holding the 7, and lose the match outright on a hand it could have
+   * survived. `high` being negative is defensible while there are tricks left
+   * to survive; at the reveal it is simply wrong.
+   *
+   * Only the instant loss is corrected here. Also ranking the leftover card by
+   * its points looks equally principled and measured 2.39 points worse over
+   * 60,000 paired matches (95% CI 2.23 to 2.55): at the last decision what you
+   * keep and what you spend are complementary, so scoring both just doubles
+   * the value weight at that one node and detunes it.
+   */
+  const leftBehind = handSize - cards
+  if (leftBehind === 1) {
+    let last = -1
+    for (let c = 0; c < CLASS_COUNT; c++) {
+      if (hand[c]! - candidate.counts[c]! > 0) {
+        last = c
+        break
+      }
+    }
+    if (last === HIGH_CLASS) score -= INSTANT_LOSS
+  }
   return score
 }
+
+/**
+ * Larger than any difference the rest of the score can produce, because
+ * finishing on a 7 or a Joker is not a bad outcome to be weighed against
+ * others — it loses the match on the spot.
+ */
+const INSTANT_LOSS = 1000
 
 export function heuristicPolicy(weights: Weights): Policy {
   return (view: PolicyView, candidates: Candidate[]): number => {

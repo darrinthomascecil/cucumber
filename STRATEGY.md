@@ -3,6 +3,25 @@
 Everything here was found by self-play, not by opinion. The numbers are
 reproducible with `pnpm self-play`; the commands are at the bottom.
 
+> **Corrected 2026-09-14 after an external review.** Eight defects were found
+> and all eight reproduced. Three conclusions below were wrong and are marked
+> where they appear: the reading of `gamma` was backwards, parity in this game
+> is **36.4%** rather than the one-third assumed throughout, and the closing
+> claim that "the design is at its ceiling" is not supported by the evidence
+> offered for it. `PROPOSAL.md` has the verification and what changed.
+
+## Parity is not one third
+
+Ties produce multiple losers, so the three seats' loss rates sum to more than
+one. Measured over 30,000 symmetric matches with all three seats playing the
+tuned heuristic: **32,757 losses, 36.40% per seat**, with 8.75% of matches
+having more than one loser.
+
+This matters for reading everything below. The oracle table's "heuristic, no
+search 36.90%" is a symmetric self-play measurement — all three seats identical
+— so it is *forced* to land on parity and says nothing whatever about how
+strong the heuristic is. It was presented here as though it measured something.
+
 ## What "best" means
 
 Cucumber does not punish points. It punishes being *the player with the most
@@ -75,9 +94,13 @@ and in both directions (35.6% against it, 37.6% for it against two champions),
 but by about two points. The three new dimensions the bigger search was given
 mostly came back as zero: `panic` and `pressure` found nothing.
 
-The one real discovery is **gamma ≈ 1.24**: trick strength keeps mattering a
-little later into a hand than a linear fade implies. You should hold your
-armour slightly longer than instinct suggests.
+The one real discovery is **gamma ≈ 1.24**. The reading first published here —
+that trick strength keeps mattering *later* into a hand — was backwards, and an
+external review caught it. Urgency is `remaining^gamma` with `remaining` between
+0 and 1, so a gamma above 1 sits below the linear curve at every hand size and
+collapses fastest at the end. What self-play actually found is that the penalty
+for spending strength should fade *earlier* than linearly: late in a hand, hold
+your armour less tightly, not more.
 
 That is a useful negative result. Further strength has to come from a richer
 policy or from search — not from turning these dials.
@@ -239,7 +262,15 @@ There is a second reading of the oracle result that is more useful: the cheat
 plays one ply deep with a heuristic continuation, and still wins 99.7% of
 matches. So searching *deeper* is not the missing ingredient either. Under
 perfect information this game is nearly trivial; all of its difficulty is the
-uncertainty, and the uncertainty is mostly not reducible.
+uncertainty.
+
+**The last clause of that sentence used to read "and the uncertainty is mostly
+not reducible", which the oracle does not show.** The oracle measures what a
+player gains from *being told* the hidden cards. It does not partition the
+honest player's losses into a reducible part and an irreducible one, and it
+shares the honest player's own enumerator and continuation model, so it is not
+an optimal full-information bound either. No lower bound on honest play was
+ever established here.
 
 ## Solving the endgame exactly
 
@@ -311,9 +342,19 @@ one's favour: the opponents were its own heuristic, which matches its internal
 model exactly.)
 
 Three consecutive improvements — better weights, better beliefs, exact
-endgames — each measured as nothing. That consistency is itself the finding.
-The design is at its ceiling, and what remains between it and the oracle is
-uncertainty that cannot be reasoned away.
+endgames — each measured as nothing.
+
+**That is not the same as being at the ceiling, and the conclusion drawn here
+was wrong.** Three null results establish that those three levers are spent,
+not that no lever remains. An external review then found eight defects in the
+beliefs, values and action selection underneath those experiments, including a
+sampler whose implied opponent hands were wrong by a full card per class and a
+position where the action filter discarded the best move by nine points. A
+search cannot measure its way past a defect that is present in both arms of
+every comparison it runs.
+
+What the numbers support is narrower: this policy family is converged, and
+deeper search over the *current* beliefs does not help. See `PROPOSAL.md`.
 
 ## Where this is still wrong
 

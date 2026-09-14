@@ -86,13 +86,19 @@ export function searchPlayer(
   inference = true,
   solveFrom = 0,
   solveMode: 'optimal' | 'model' = 'model',
+  /** Matches the advisor's default, so the benchmark measures what ships.
+   *  It used to be 10 here and 14 there, which quietly benchmarked a
+   *  different player from the one in the app. */
+  maxActions = 14,
+  screen = true,
 ): Player {
   return {
     name,
     policy: searchPolicy(random, {
       worlds,
       weights,
-      maxActions: 10,
+      maxActions,
+      screen,
       inference,
       solveFrom,
       solveMode,

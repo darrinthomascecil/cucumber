@@ -1,4 +1,5 @@
 import { CLASS_COUNT, type Counts } from './classes.ts'
+import { heuristicPolicy, TUNED } from './heuristic.ts'
 import { handValue, settleHand, type ContinuationModel } from './outcome.ts'
 import {
   type Candidate,
@@ -7,6 +8,7 @@ import {
   commit,
   finalClasses,
   handOver,
+  playOut,
   policyView,
   type Policy,
   type SeatIndex,
@@ -66,6 +68,28 @@ function keyOf(sim: Sim): string {
   return String.fromCharCode(...parts.map((n) => n + 33))
 }
 
+/**
+ * Value of a position the solver ran out of budget on.
+ *
+ * This used to call `terminalValues` directly, which reads each seat's lowest
+ * remaining card as though it were their last — so a hand still holding a
+ * 7 alongside a 2 was scored as a 2, and every dangerous card left in play
+ * simply vanished from the valuation. Playing the position out gives an
+ * estimate that is at least about the game being played.
+ */
+function estimateValues(
+  sim: Sim,
+  options: SolveOptions,
+): [number, number, number] {
+  const policy =
+    options.opponents.kind === 'model' ? options.opponents.policy : DEFAULT_FALLBACK
+  const finished = cloneSim(sim)
+  playOut(finished, [policy, policy, policy])
+  return terminalValues(finished, options.continuation)
+}
+
+const DEFAULT_FALLBACK: Policy = heuristicPolicy(TUNED)
+
 function terminalValues(
   sim: Sim,
   continuation: ContinuationModel | undefined,
@@ -108,7 +132,7 @@ function search(
   const key = keyOf(sim)
   const cached = memo.get(key)
   if (cached) return cached
-  if (!budget.spend()) return terminalValues(sim, options.continuation)
+  if (!budget.spend()) return estimateValues(sim, options)
 
   const seat = sim.actionSeat
   const candidates = candidatesFor(sim, seat)

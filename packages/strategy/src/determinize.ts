@@ -167,12 +167,70 @@ function tightness(info: InfoSet, seat: SeatIndex): number {
  * everything the player knows — including what the others have shown they
  * cannot hold. Whatever is left over is the stock and the face-down discards.
  */
-export function sampleFullWorld(info: InfoSet, random: Random, attempts = 8): World {
+/**
+ * Does this hand satisfy every failure recorded against a seat? A seat that
+ * was seen to fail a target cannot be holding a hand that could have met it.
+ */
+function consistentWith(hand: Counts, targets: readonly (readonly CardClass[])[]): boolean {
+  for (const target of targets) {
+    if (canMeet(hand, target)) return false
+  }
+  return true
+}
+
+export function sampleFullWorld(
+  info: InfoSet,
+  random: Random,
+  attempts = 8,
+  /**
+   * Unconstrained draws to try before falling back to construction.
+   *
+   * A rejection draw that survives the check is an exact sample from the
+   * posterior; the constructive draw below is not. `drawWithin` takes each
+   * card uniformly from whatever is still allowed, which over-weights hands
+   * that press against the limit, and picking one branch of the failure
+   * disjunction uniformly over-weights the narrow branches. Together those
+   * put a HIGH in a two-card hand that failed a pair of HIGHs 22.5% of the
+   * time where the conditional-uniform answer is 42.1%. So: sample properly
+   * when we can, and construct only when rejection is too slow.
+   *
+   * With no recorded failures this succeeds on the first try and costs
+   * nothing, which is the common case.
+   */
+  rejectionAttempts = 64,
+): World {
   const basePool = unseenPool(info)
   const others = ([0, 1, 2] as SeatIndex[]).filter((seat) => seat !== info.seat)
   // The most pinned-down seat picks first, while cards that can satisfy it
   // still remain in the pool.
   const order = [...others].sort((a, b) => tightness(info, a) - tightness(info, b))
+
+  const constrained = others.filter((seat) => (info.failures?.[seat]?.length ?? 0) > 0)
+
+  for (let attempt = 0; attempt < rejectionAttempts; attempt++) {
+    const pool = cloneCounts(basePool)
+    const dealt: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
+    dealt[info.seat] = cloneCounts(info.hand)
+    let ok = true
+    for (const seat of order) {
+      const drawn = drawWithin(pool, info.handSizes[seat]!, [], random)
+      if (!drawn) {
+        ok = false
+        break
+      }
+      dealt[seat] = drawn
+    }
+    if (!ok) break
+    let consistent = true
+    for (const seat of constrained) {
+      if (!consistentWith(dealt[seat], info.failures![seat]!)) {
+        consistent = false
+        break
+      }
+    }
+    if (!consistent) continue
+    return { hands: dealt, rest: leftovers(pool) }
+  }
 
   for (let attempt = 0; attempt < attempts; attempt++) {
     const pool = cloneCounts(basePool)
@@ -181,12 +239,16 @@ export function sampleFullWorld(info: InfoSet, random: Random, attempts = 8): Wo
     let ok = true
 
     for (const seat of order) {
-      // Each failure is a disjunction; pick one way of failing per attempt, so
-      // repeated sampling explores all of them rather than always the same one.
+      // Each failure is a disjunction. Walk the branches in a rotating order
+      // rather than choosing one at random: a branch may be impossible for
+      // this pool, and eight independent coin flips used to land on the
+      // impossible branch every time about once in 256 samples, which then
+      // fell through to a world that contradicted what everyone had watched.
       const limits: CountLimit[] = []
-      for (const target of info.failures?.[seat] ?? []) {
-        const choices = limitsFor(target)
-        limits.push(choices[random.int(choices.length)]!)
+      const targets = info.failures?.[seat] ?? []
+      for (let t = 0; t < targets.length; t++) {
+        const choices = limitsFor(targets[t]!)
+        limits.push(choices[(attempt + t) % choices.length]!)
       }
       const drawn = drawWithin(pool, info.handSizes[seat]!, limits, random)
       if (!drawn) {
@@ -200,23 +262,56 @@ export function sampleFullWorld(info: InfoSet, random: Random, attempts = 8): Wo
     if (totalOf(dealt[info.seat]) !== info.handSizes[info.seat]) {
       throw new Error('Hand size disagrees with the information set')
     }
-    const rest: number[] = []
-    for (let c = 0; c < CLASS_COUNT; c++) for (let n = pool[c]!; n > 0; n--) rest.push(c)
-    return { hands: dealt, rest }
+    return { hands: dealt, rest: leftovers(pool) }
   }
 
-  // Nothing consistent could be built — which should not happen, since the
-  // real deal is always consistent. Fall back to an unconstrained one rather
-  // than leaving the search with no world at all.
+  /*
+   * Neither rejection nor construction found a world. Deal unconstrained and
+   * then repair: hand back the cards that make a constrained seat too strong
+   * and take weaker ones in exchange. This used to return the unconstrained
+   * deal untouched, which quietly told the search that a seat might hold a
+   * card everybody had just watched it fail to produce.
+   */
   const pool = cloneCounts(basePool)
   const dealt: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
   dealt[info.seat] = cloneCounts(info.hand)
   for (const seat of order) {
     dealt[seat] = drawWithin(pool, info.handSizes[seat]!, [], random) ?? emptyCounts()
   }
+  for (const seat of constrained) {
+    repair(dealt[seat], pool, info.failures![seat]!)
+  }
+  return { hands: dealt, rest: leftovers(pool) }
+}
+
+function leftovers(pool: Counts): number[] {
   const rest: number[] = []
   for (let c = 0; c < CLASS_COUNT; c++) for (let n = pool[c]!; n > 0; n--) rest.push(c)
-  return { hands: dealt, rest }
+  return rest
+}
+
+/**
+ * Swap a seat's strongest cards back into the pool for the weakest available
+ * until it can no longer meet any target it was seen to fail. Last resort, and
+ * it gives up rather than looping if the pool cannot supply a weak enough
+ * card — a consistent-where-possible world beats a contradictory one.
+ */
+function repair(
+  hand: Counts,
+  pool: Counts,
+  targets: readonly (readonly CardClass[])[],
+): void {
+  for (let guard = 0; guard < CLASS_COUNT * 2 && !consistentWith(hand, targets); guard++) {
+    let strongest = -1
+    for (let c = CLASS_COUNT - 1; c >= 0; c--) if (hand[c]! > 0) { strongest = c; break }
+    let weakest = -1
+    for (let c = 0; c < CLASS_COUNT; c++) if (pool[c]! > 0) { weakest = c; break }
+    if (strongest < 0 || weakest < 0 || weakest >= strongest) return
+    hand[strongest]!--
+    pool[strongest]!++
+    hand[weakest]!++
+    pool[weakest]!--
+  }
 }
 
 export function sampleWorld(info: InfoSet, random: Random): [Counts, Counts, Counts] {
