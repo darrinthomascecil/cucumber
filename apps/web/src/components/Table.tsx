@@ -117,15 +117,22 @@ export function Table({
 
   // Cards fan around an arc, as they would in a hand held up in front of you.
   const step = Math.min(3.2, 40 / Math.max(1, hand.length))
+  /** Roughly how far apart the cards sit once fanned, in pixels. */
+  const PITCH = 43
   const fan = (index: number) => {
-    const tilt = (index - (hand.length - 1) / 2) * step
-    return { tilt, lift: Math.abs(tilt) * 1.1 }
+    const offset = index - (hand.length - 1) / 2
+    return {
+      tilt: offset * step,
+      lift: Math.abs(offset * step) * 1.1,
+      // Where this card has to travel from, so they all start together.
+      dealFrom: -offset * PITCH,
+    }
   }
 
   return (
     <div className="table">
       <aside className="rail rail-left">
-        {view.lastTrick && view.phase === 'TRICK_PLAY' && !settled ? (
+        {view.lastTrick && view.phase === 'TRICK_PLAY' ? (
           <div className="last-trick">
             <span className="felt-title">Last trick</span>
             {view.lastTrick.plays.map((play, index) => (
@@ -183,9 +190,14 @@ export function Table({
                 </div>
               ) : null}
 
-              {wrap(
-                settled,
-                finishedAt,
+              {/*
+                * One layer, always mounted. Re-parenting the plays into a
+                * wrapper when the trick settled remounted all three cards and
+                * re-ran their entry animation, so the two already on the felt
+                * jumped. Adding a class starts the fade without touching the
+                * tree.
+                */}
+              <div className={`trick-layer${settled ? ' gathering' : ''}`}>
                 <>
                   {(onFelt?.plays ?? []).map((play, index) => {
                     const place = placeOf(play.seat)
@@ -212,8 +224,8 @@ export function Table({
                         : `${nameOf(view, winner ?? mySeat)} takes it`}
                     </p>
                   ) : null}
-                </>,
-              )}
+                </>
+              </div>
 
               {view.phase === 'LOBBY' ? (
                 <p className="centre-note">Waiting for the table.</p>
@@ -245,7 +257,7 @@ export function Table({
         {hand.length > 0 ? (
           <div className={`hand${dealing ? ' dealing' : ''}`}>
             {hand.map((card, index) => {
-              const { tilt, lift } = fan(index)
+              const { tilt, lift, dealFrom } = fan(index)
               return interactive ? (
                 <CardButton
                   key={card}
@@ -253,18 +265,15 @@ export function Table({
                   index={index}
                   tilt={tilt}
                   lift={lift}
+                  dealFrom={dealFrom}
                   selected={selected.includes(card)}
                   advised={advised.has(card)}
                   disabled={isDisabled(card)}
                   onToggle={toggle}
                 />
               ) : (
-                <span
-                  className="card-slot"
-                  key={card}
-                  style={{ transform: `rotate(${tilt}deg) translateY(${lift}px)` }}
-                >
-                  <CardFace id={card} index={index} />
+                <span className="card-slot" key={card}>
+                  <CardFace id={card} index={index} tilt={tilt} lift={lift} dealFrom={dealFrom} />
                 </span>
               )
             })}
@@ -439,16 +448,6 @@ function Actions({
     default:
       return null
   }
-}
-
-/** The finished trick fades as one thing, so it is wrapped as one thing. */
-function wrap(settled: unknown, at: number | null, children: React.ReactNode): React.ReactNode {
-  if (!settled) return children
-  return (
-    <div className="settled-trick" key={`settled-${at}`}>
-      {children}
-    </div>
-  )
 }
 
 function leadLine(view: PlayerView): string {

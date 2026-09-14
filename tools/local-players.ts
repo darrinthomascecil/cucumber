@@ -35,6 +35,14 @@ const WORLDS = Number(process.env.LOCAL_WORLDS ?? 160)
 
 function decide(view: PlayerView, memory: SeatMemory): ClientCommand | null {
   const hand = view.you.hand
+  /*
+   * A discard that was refused and re-sent would otherwise be remembered
+   * twice, and a card still in hand was plainly never discarded at all. Both
+   * make the advisor believe more cards exist than the deck holds.
+   */
+  const seen: SeatMemory = {
+    discarded: [...new Set(memory.discarded)].filter((card) => !hand.includes(card)),
+  }
   const envelope = {
     matchId: view.matchId,
     expectedVersion: view.version,
@@ -55,7 +63,7 @@ function decide(view: PlayerView, memory: SeatMemory): ClientCommand | null {
 
     case 'SUBMIT_DISCARDS': {
       const required = view.prompt.requiredCards ?? 0
-      const advice = advise(view, memory, { worlds: WORLDS })
+      const advice = advise(view, seen, { worlds: WORLDS })
       const chosen = advice.suggestions[0]?.cards
       return {
         type: 'SUBMIT_DISCARDS',
@@ -68,7 +76,7 @@ function decide(view: PlayerView, memory: SeatMemory): ClientCommand | null {
     case 'LEAD':
     case 'FOLLOW':
     case 'FORCED_LOW': {
-      const advice = advise(view, memory, { worlds: WORLDS })
+      const advice = advise(view, seen, { worlds: WORLDS })
       const chosen = advice.suggestions[0]?.cards
       if (chosen && chosen.length > 0) {
         return { type: 'PLAY_CARDS', cards: chosen, ...envelope }
@@ -137,6 +145,11 @@ function play(name: string, cookie: string, index: number): void {
       if (message.code !== 'VERSION_CONFLICT') {
         console.warn(`${name} was refused: ${message.code} — ${message.reason}`)
       }
+      // A refusal comes back on the same version the command was built on, so
+      // the "act once per version" guard would treat that version as already
+      // handled and this player would sit there forever. Let it try again.
+      actedOn = -1
+      socket.send(JSON.stringify({ type: 'RESYNC' }))
       return
     }
     if (message.type !== 'STATE_UPDATED') return

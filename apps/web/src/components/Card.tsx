@@ -8,16 +8,28 @@ interface Props {
   small?: boolean
   /** Position in a fan, used to stagger the dealing animation. */
   index?: number
+  /** Degrees of tilt in the fan, and how far the card dips at the edges. */
+  tilt?: number
+  lift?: number
+  /** Horizontal distance back to where the deal started, in pixels. */
+  dealFrom?: number
 }
 
-export function CardFace({ id, small, index = 0 }: Props) {
+export function CardFace({ id, small, index = 0, tilt = 0, lift = 0, dealFrom = 0 }: Props) {
   const card = parseCard(id)
   const red = card.suit === 'H' || card.suit === 'D'
   const classes = ['card', small ? 'small' : '', red ? 'red' : '', card.suit ? '' : 'joker']
   return (
     <div
       className={classes.filter(Boolean).join(' ')}
-      style={{ '--i': index } as React.CSSProperties}
+      style={
+        {
+          '--i': index,
+          '--tilt': `${tilt}deg`,
+          '--lift': `${lift}px`,
+          '--dx': `${dealFrom}px`,
+        } as React.CSSProperties
+      }
       aria-label={label(id)}
     >
       <span className="rank">{card.suit ? card.rank : 'JOKER'}</span>
@@ -31,9 +43,6 @@ interface ButtonProps extends Props {
   disabled: boolean
   /** Marked by the advisor as its first choice. */
   advised?: boolean
-  /** Degrees of tilt in the fan, and how far the card dips at the edges. */
-  tilt?: number
-  lift?: number
   onToggle: (id: CardId) => void
 }
 
@@ -45,6 +54,7 @@ export function CardButton({
   index = 0,
   tilt = 0,
   lift = 0,
+  dealFrom = 0,
   onToggle,
 }: ButtonProps) {
   const card = parseCard(id)
@@ -68,6 +78,7 @@ export function CardButton({
           '--i': index,
           '--tilt': `${tilt}deg`,
           '--lift': `${lift}px`,
+          '--dx': `${dealFrom}px`,
         } as React.CSSProperties
       }
       onClick={() => onToggle(id)}
@@ -94,7 +105,12 @@ export function CardBack({
     <div
       className={`card back${small ? ' small' : ''}`}
       style={
-        { '--i': index, '--tilt': `${tilt}deg`, '--lift': `${lift}px` } as React.CSSProperties
+        {
+          '--i': index,
+          '--tilt': `${tilt}deg`,
+          '--lift': `${lift}px`,
+          '--dx': `${-tilt * 4}px`,
+        } as React.CSSProperties
       }
       aria-hidden="true"
     >

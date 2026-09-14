@@ -39,16 +39,33 @@ export interface InfoSet {
   failures?: CardClass[][][]
 }
 
-/** Cards that could be anywhere the player cannot see. */
+/**
+ * Cards that could be anywhere the player cannot see.
+ *
+ * The counts are supplied by the caller and can disagree with the deck if
+ * their memory of their own discards has drifted — a submission that was
+ * refused and re-sent used to be remembered twice. This clamps rather than
+ * throws, because the caller is usually an advisor inside somebody's game,
+ * and the right answer to a slightly stale belief is worse advice, not a dead
+ * player. `unseenPoolExact` is available where the disagreement matters.
+ */
 export function unseenPool(info: InfoSet): Counts {
   const pool = fullDeckCounts()
   for (let c = 0; c < CLASS_COUNT; c++) {
-    pool[c]! -= info.hand[c]! + info.played[c]! + info.mine[c]!
-  }
-  for (let c = 0; c < CLASS_COUNT; c++) {
-    if (pool[c]! < 0) throw new Error('Information set counts more cards than the deck holds')
+    pool[c] = Math.max(0, pool[c]! - (info.hand[c]! + info.played[c]! + info.mine[c]!))
   }
   return pool
+}
+
+/** How far the information set disagrees with a 54-card deck, if at all. */
+export function poolOvercount(info: InfoSet): number {
+  const deck = fullDeckCounts()
+  let over = 0
+  for (let c = 0; c < CLASS_COUNT; c++) {
+    const claimed = info.hand[c]! + info.played[c]! + info.mine[c]!
+    if (claimed > deck[c]!) over += claimed - deck[c]!
+  }
+  return over
 }
 
 export interface World {

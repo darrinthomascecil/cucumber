@@ -3,7 +3,9 @@ import {
   CLASS_COUNT,
   canMeet,
   countsOf,
+  poolOvercount,
   sampleFullWorld,
+  unseenPool,
   spread,
   xorshift,
   type InfoSet,
@@ -101,5 +103,34 @@ describe('worlds respect what players have shown they cannot hold', () => {
       if (spread(world.hands[1]).some((c) => c >= 9)) high++
     }
     expect(high).toBeGreaterThan(100)
+  })
+})
+
+describe('a stale information set degrades rather than dies', () => {
+  /**
+   * The counts come from whoever is asking, and a player's memory of their own
+   * discards can drift — one that was refused and re-sent used to be recorded
+   * twice. That threw, which killed the process the advisor was running in.
+   */
+  it('clamps when more cards are claimed than the deck holds', () => {
+    const info = baseInfo({
+      hand: countsOf(['2C', '2D', '2H', '2S', '3C']),
+      // Claiming all four 2s a second time: impossible, and survivable.
+      mine: countsOf(['2C', '2D', '2H', '2S']),
+      handSizes: [5, 4, 4],
+    })
+    expect(poolOvercount(info)).toBe(4)
+    const pool = unseenPool(info)
+    for (let c = 0; c < CLASS_COUNT; c++) expect(pool[c]).toBeGreaterThanOrEqual(0)
+    const random = xorshift(3)
+    for (let trial = 0; trial < 50; trial++) {
+      const world = sampleFullWorld(info, random)
+      expect(world.hands[1].reduce((a, b) => a + b, 0)).toBe(4)
+      expect(world.hands[2].reduce((a, b) => a + b, 0)).toBe(4)
+    }
+  })
+
+  it('reports no disagreement for an ordinary information set', () => {
+    expect(poolOvercount(baseInfo())).toBe(0)
   })
 })

@@ -539,9 +539,12 @@ button:focus-visible {
  * then goes, rather than sitting on the felt while you think about your lead.
  * Keep these in step with TRICK_HOLD_MS and TRICK_FADE_MS in Table.tsx.
  */
-.settled-trick {
+.trick-layer {
   position: absolute;
   inset: 0;
+}
+
+.trick-layer.gathering {
   animation: settle-away 550ms ease-in forwards;
 }
 
@@ -765,9 +768,15 @@ button:focus-visible {
   user-select: none;
   flex: none;
   transform-origin: bottom center;
-  transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px))
-    translateY(calc(var(--deal) * -30vh)) rotate(calc(var(--deal) * -16deg))
-    scale(calc(1 - var(--deal) * 0.4));
+  /*
+   * The deal translate comes first, in the untilted frame, and --dx pulls each
+   * card back towards one point — so a hand arrives from a single place, the
+   * way cards come off a deck, instead of thirteen cards each dropping
+   * vertically from above their own seat in the fan.
+   */
+  transform: translate(calc(var(--deal) * var(--dx, 0px)), calc(var(--deal) * var(--dy, -9rem)))
+    rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px))
+    rotate(calc(var(--deal) * -7deg)) scale(calc(1 - var(--deal) * 0.35));
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
@@ -862,8 +871,14 @@ button.card:disabled {
 
 .hand.dealing .card,
 .seat-cards .card {
-  animation: deal-in 460ms cubic-bezier(0.2, 0.75, 0.3, 1) backwards;
-  animation-delay: calc(var(--i, 0) * 55ms);
+  animation: deal-in 420ms cubic-bezier(0.2, 0.75, 0.3, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 48ms);
+}
+
+/* Opponents' cards travel a shorter way — they are across the table, not in
+   front of you, so the same distance would take them off the screen. */
+.seat-cards .card {
+  --dy: -4.5rem;
 }
 
 /* A card pushed into the middle arrives rather than appears. */

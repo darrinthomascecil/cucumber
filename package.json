@@ -20,18 +20,19 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "local:players": "node --experimental-strip-types --env-file-if-exists=.env tools/local-players.ts",
-    "self-play": "node --experimental-strip-types tools/self-play.ts"
+    "self-play": "node --experimental-strip-types tools/self-play.ts",
+    "record": "node --experimental-strip-types --env-file-if-exists=.env tools/record-game.ts"
   },
   "devDependencies": {
+    "@cucumber/database": "workspace:*",
+    "@cucumber/game-engine": "workspace:*",
+    "@cucumber/shared": "workspace:*",
+    "@cucumber/strategy": "workspace:*",
     "@types/node": "22.20.2",
+    "@types/ws": "8.5.13",
+    "playwright": "^1.63.0",
     "typescript": "5.7.3",
     "vitest": "3.2.7",
-    "@cucumber/shared": "workspace:*",
-    "@cucumber/game-engine": "workspace:*",
-    "ws": "8.18.0",
-    "@types/ws": "8.5.13",
-    "@cucumber/database": "workspace:*",
-    "@cucumber/strategy": "workspace:*"
-  },
-  "dependencies": {}
+    "ws": "8.18.0"
+  }
 }
