@@ -241,6 +241,80 @@ matches. So searching *deeper* is not the missing ingredient either. Under
 perfect information this game is nearly trivial; all of its difficulty is the
 uncertainty, and the uncertainty is mostly not reducible.
 
+## Solving the endgame exactly
+
+Once the hands are short, the rest of a Cucumber hand is small enough to walk
+to the bottom rather than guess at. `packages/strategy/src/endgame.ts` does
+that: backward induction returning a value for all three seats at once,
+because in a three-handed game the others' prospects are part of your own.
+
+How large the endgame is depends entirely on what you assume about the other
+two players (`node --experimental-strip-types tools/endgame-size.ts`):
+
+| cards each | opponents assumed to play the heuristic | all three playing well |
+|---|---|---|
+| 4 | 34 states · 0.15ms | 363 states · 1.4ms |
+| 5 | 77 · 0.25ms | 3,242 · 9.6ms |
+| 6 | 171 · 0.33ms | 26,174 · 71ms |
+| 7 | 341 · 0.60ms | 191,755 · 490ms |
+| 8 | 650 · 0.78ms | 1,100,208 · 2,114ms |
+
+Assume a fixed opponent policy and only your own choices branch, so the whole
+back half of a hand solves in under a millisecond. Let all three seats play to
+maximise their own survival and the tree grows about **eightfold per card** —
+four is comfortable, eight is two seconds.
+
+A test pins the solver to a position anyone can check by eye: two cards left,
+holding a 2 and a 7. Leading the 7 keeps the 2 and scores two points; leading
+the 2 leaves you holding the 7, which loses the match outright. The solver
+returns **exactly zero** for leading the 2 — and still does when you are
+eighteen points behind and the scores say you are safe.
+
+### And it does not help
+
+`pnpm self-play endgame`, 12,000 matches per arm, 256 imagined deals:
+
+```
+no solving               22.06% ± 0.76
+solve from 4, modelled   21.95% ± 0.76
+solve from 6, modelled   21.96% ± 0.76
+solve from 8, modelled   23.01% ± 0.77
+```
+
+Exact solving is worth nothing, and solving *deeper* is measurably worse.
+
+That is not a bug in the solver — it is the documented pathology of sampling
+deals and playing each one out as though every hand were face up. Doing that
+quietly assumes you will be able to play differently in worlds you cannot
+actually tell apart. Solving each world exactly sharpens that assumption
+instead of correcting it, so the better your evaluation of each imagined deal,
+the more confidently you act on a distinction you will never get to make.
+
+**So it is off by default.** It is built, tested, and switched on only by
+passing `solveFrom`. A feature that measures neutral at best does not get to
+cost the advisor latency.
+
+## The advisor did not get better
+
+Worth recording plainly. Between the first working advisor and the end of a
+day's work — ten million matches of weight tuning, the inference, the solver —
+here is what changed, both arms against identical opponents, 16,000 matches
+each:
+
+```
+first advisor     21.18% ± 0.65
+current advisor   21.59% ± 0.65
+```
+
+Nominally *worse*, comfortably inside the noise. (A small caveat in the first
+one's favour: the opponents were its own heuristic, which matches its internal
+model exactly.)
+
+Three consecutive improvements — better weights, better beliefs, exact
+endgames — each measured as nothing. That consistency is itself the finding.
+The design is at its ceiling, and what remains between it and the oracle is
+uncertainty that cannot be reasoned away.
+
 ## Where this is still wrong
 
 Honest limits, not disclaimers:
@@ -283,6 +357,8 @@ pnpm self-play gauntlet                     # against rule-based opponents
 pnpm self-play exploit                      # hunt for a counter-strategy
 pnpm self-play oracle                       # what hidden information is worth
 pnpm self-play search --worlds 256 --compare # with and without inference
+pnpm self-play endgame                      # exact solving, on and off
+node --experimental-strip-types tools/endgame-size.ts   # how big the endgame is
 pnpm vitest run tests/strategy              # correctness, including the
                                             # information-constraint test
 ```

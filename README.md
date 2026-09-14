@@ -60,6 +60,8 @@ pnpm self-play sanity                 # throughput
 pnpm self-play cem --budget 10000000  # cross-entropy search for a strategy
 pnpm self-play matrix                 # round robin between candidates
 pnpm self-play search --worlds 256    # does searching beat the heuristic?
+pnpm self-play oracle                 # what is hidden information worth?
+pnpm self-play endgame                # does exact endgame solving help?
 ```
 
 The current strategy came from ten million matches of that search. What it
