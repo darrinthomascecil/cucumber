@@ -18,7 +18,8 @@
     "db:push": "pnpm --filter @cucumber/database push",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "local:players": "node --experimental-strip-types --env-file-if-exists=.env tools/local-players.ts"
+    "local:players": "node --experimental-strip-types --env-file-if-exists=.env tools/local-players.ts",
+    "self-play": "node --experimental-strip-types tools/self-play.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.2",
@@ -28,7 +29,8 @@
     "@cucumber/game-engine": "workspace:*",
     "ws": "8.18.0",
     "@types/ws": "8.5.13",
-    "@cucumber/database": "workspace:*"
+    "@cucumber/database": "workspace:*",
+    "@cucumber/strategy": "workspace:*"
   },
   "dependencies": {}
 }

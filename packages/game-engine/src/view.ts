@@ -141,6 +141,7 @@ export function viewFor(state: MatchState, seat: Seat): PlayerView {
     handNumber: state.handNumber,
     dealerSeat: state.dealerSeat,
     stockCount: state.stock.length,
+    played: [...state.played],
     exchange: state.exchange
       ? {
           size: state.exchange.size,

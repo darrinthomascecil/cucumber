@@ -8,6 +8,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY packages/shared/package.json packages/shared/
 COPY packages/game-engine/package.json packages/game-engine/
+COPY packages/strategy/package.json packages/strategy/
 COPY packages/database/package.json packages/database/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/

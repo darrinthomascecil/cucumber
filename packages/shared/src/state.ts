@@ -152,6 +152,9 @@ export interface PlayerView {
   handNumber: number
   dealerSeat: Seat | null
   stockCount: number
+  /** Every card played out to a completed trick this hand. Public: all three
+   *  players watched each one hit the table. */
+  played: CardId[]
   exchange: { size: number; actingSeat: Seat | null; step: ExchangeStep } | null
   trick: TrickState | null
   lastTrick: TrickState | null

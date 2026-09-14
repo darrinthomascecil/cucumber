@@ -17,6 +17,9 @@ importers:
       '@cucumber/shared':
         specifier: workspace:*
         version: link:packages/shared
+      '@cucumber/strategy':
+        specifier: workspace:*
+        version: link:packages/strategy
       '@types/node':
         specifier: 22.20.2
         version: 22.20.2
@@ -117,6 +120,15 @@ importers:
         version: link:../shared
 
   packages/shared: {}
+
+  packages/strategy:
+    dependencies:
+      '@cucumber/game-engine':
+        specifier: workspace:*
+        version: link:../game-engine
+      '@cucumber/shared':
+        specifier: workspace:*
+        version: link:../shared
 
 packages:
 
