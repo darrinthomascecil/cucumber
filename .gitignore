@@ -7,3 +7,6 @@ out/
 .env.local
 .DS_Store
 packages/database/src/generated/
+
+/artifacts/*
+!/artifacts/advisor-endgame.tap

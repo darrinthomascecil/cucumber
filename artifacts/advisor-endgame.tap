@@ -1,0 +1,27 @@
+TAP version 13
+# ENDGAME_CHECK {"target":"eventual-match-loss","opponentPolicy":"uniform rank-equivalent actions, uniform tied identities","observer":1,"hand":["7D","7S"],"proposedPlay":["7D"],"scores":[{"seat":1,"score":20},{"seat":2,"score":20},{"seat":3,"score":20}],"probabilities":{"1":1,"2":0.21000337872618577,"3":0.0415583320838726},"assignments":272,"consistentAssignments":272,"method":"exact-final","forecast":{"1":1,"2":0.21000337872618616,"3":0.04155833208387275},"maximumError":3.885780586188048e-16,"referenceMs":108.4801,"forecastMs":1388.0456,"attempts":272,"effectiveParticles":175.65556148251372,"oracleBrierRisk":0.06857773225601703,"excessBrierRisk":5.809888665568162e-32}
+# (node:39272) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/darrincecil/cucumber/tests/advisor/endgame.node.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to \\\\?\\C:\\Users\\darrincecil\\cucumber\\package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: closing forecast agrees with an independent exhaustive reference
+ok 1 - closing forecast agrees with an independent exhaustive reference
+  ---
+  duration_ms: 1525.7593
+  type: 'test'
+  ...
+# Subtest: exact closing probabilities depend on the player view, not hidden cards or Monte Carlo settings
+ok 2 - exact closing probabilities depend on the player view, not hidden cards or Monte Carlo settings
+  ---
+  duration_ms: 2685.1685
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5194.7763

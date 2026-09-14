@@ -61,6 +61,9 @@ export function createMatch(matchId: string, seats: SeatAssignment[]): MatchStat
     stock: [],
     discards: [],
     played: [],
+    completedTricks: [],
+    discardedBySeat: emptyHands(),
+    exchangeCounts: { 1: 0, 2: 0, 3: 0 },
     exchange: null,
     trick: null,
     lastTrick: null,
@@ -125,6 +128,9 @@ function beginHand(state: MatchState, dealerSeat: Seat, ctx: EngineContext): Eng
   state.stock = dealt.stock
   state.discards = []
   state.played = []
+  state.completedTricks = []
+  state.discardedBySeat = emptyHands()
+  state.exchangeCounts = { 1: 0, 2: 0, 3: 0 }
   state.exchange = null
   state.trick = null
   state.lastTrick = null
@@ -166,6 +172,7 @@ function drawForSeat(state: MatchState, seat: Seat, count: number): void {
   const drawn = state.stock.slice(0, count)
   state.stock = state.stock.slice(count)
   state.hands[seat] = [...state.hands[seat], ...drawn]
+  if (state.exchangeCounts) state.exchangeCounts[seat] += count
 }
 
 /** A hand is over once every player is down to their final card (spec §25). */
@@ -316,6 +323,9 @@ function handleSubmitDiscards(state: MatchState, seat: Seat, cards: CardId[]): E
   state.hands[seat] = removeCards(hand, cards)
   // Spec §11: discards are dead for the hand and never return to the stock.
   state.discards = [...state.discards, ...cards]
+  if (state.discardedBySeat) {
+    state.discardedBySeat[seat] = [...state.discardedBySeat[seat], ...cards]
+  }
   return [
     { type: 'CARDS_EXCHANGED', seat, payload: { count: cards.length } },
     ...advanceExchange(state),
@@ -350,6 +360,7 @@ function handlePlayCards(state: MatchState, seat: Seat, cards: CardId[]): Engine
 
   const leader = nextLeader(current)
   state.played = [...state.played, ...trickCards(current)]
+  if (state.completedTricks) state.completedTricks = [...state.completedTricks, current]
   state.lastTrick = current
   events.push({
     type: 'TRICK_COMPLETED',
@@ -379,6 +390,9 @@ function handleStartNextMatch(state: MatchState): EngineEvent[] {
   state.stock = []
   state.discards = []
   state.played = []
+  state.completedTricks = []
+  state.discardedBySeat = emptyHands()
+  state.exchangeCounts = { 1: 0, 2: 0, 3: 0 }
   state.exchange = null
   state.trick = null
   state.lastTrick = null

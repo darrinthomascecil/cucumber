@@ -174,12 +174,15 @@ describe('hidden information', () => {
     }
   })
 
-  it('never leaks the stock or the discards', () => {
+  it('never leaks the stock or another player\u2019s discards', () => {
     const context = ctx()
     const state = runExchange(startedMatch(), 5, context)
     const view = viewFor(state, 1)
     const serialised = JSON.stringify(view)
-    for (const card of state.discards) expect(serialised).not.toContain(card)
+    for (const card of state.discards.filter((candidate) => !view.you.discards.includes(candidate))) {
+      expect(serialised).not.toContain(JSON.stringify(card))
+    }
+    expect(view.you.discards).toEqual(state.discardedBySeat![1])
     expect(view.stockCount).toBe(state.stock.length)
   })
 

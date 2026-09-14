@@ -94,6 +94,9 @@ export interface MatchState {
   discards: CardId[]
   /** Cards played out in completed tricks this hand. */
   played: CardId[]
+  completedTricks?: TrickState[]
+  discardedBySeat?: Record<Seat, CardId[]>
+  exchangeCounts?: Record<Seat, number>
   exchange: ExchangeState | null
   trick: TrickState | null
   lastTrick: TrickState | null
@@ -147,6 +150,7 @@ export interface PlayerView {
     score: number
     ready: boolean
     hand: CardId[]
+    discards: CardId[]
   }
   players: PublicPlayer[]
   handNumber: number
@@ -155,6 +159,10 @@ export interface PlayerView {
   exchange: { size: number; actingSeat: Seat | null; step: ExchangeStep } | null
   trick: TrickState | null
   lastTrick: TrickState | null
+  played: CardId[]
+  completedTricks: TrickState[]
+  exchangeCounts: Record<Seat, number> | null
+  historyComplete: boolean
   handResult: HandResult | null
   losers: Seat[]
   /** Whose action the match is waiting on, if anyone's. */
