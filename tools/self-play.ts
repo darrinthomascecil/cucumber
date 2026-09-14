@@ -299,13 +299,14 @@ async function search(pool: TrialPool): Promise<void> {
   const matches = flag('matches', 4000)
   const worlds = flag('worlds', 256)
   const weights = parseWeights(option('weights'), TUNED)
+  const against = parseWeights(option('opponent'), weights)
   const both = args.includes('--compare')
 
   const run = async (inference: boolean) => {
     const started = Date.now()
     const result = await measure(pool, {
       subject: weights,
-      opponent: weights,
+      opponent: against,
       matches,
       seed: 8080,
       worlds,
@@ -337,6 +338,40 @@ async function search(pool: TrialPool): Promise<void> {
   console.log(
     `  reading the table is worth ${((without.result.lossRate - withInference.result.lossRate) * 100).toFixed(2)} points`,
   )
+}
+
+/**
+ * Does solving the end of the hand exactly beat playing it out with a guess?
+ */
+async function endgame(pool: TrialPool): Promise<void> {
+  const matches = flag('matches', 12_000)
+  const worlds = flag('worlds', 256)
+  const arms: { label: string; solveFrom: number; solveMode: 'optimal' | 'model' }[] = [
+    { label: 'no solving', solveFrom: 0, solveMode: 'model' },
+    { label: 'solve from 4, modelled', solveFrom: 4, solveMode: 'model' },
+    { label: 'solve from 6, modelled', solveFrom: 6, solveMode: 'model' },
+    { label: 'solve from 8, modelled', solveFrom: 8, solveMode: 'model' },
+    { label: 'solve from 4, optimal', solveFrom: 4, solveMode: 'optimal' },
+    { label: 'solve from 5, optimal', solveFrom: 5, solveMode: 'optimal' },
+  ]
+  console.log(`search, ${worlds} imagined deals, against two heuristics:`)
+  for (const arm of arms) {
+    const started = Date.now()
+    const result = await measure(pool, {
+      subject: TUNED,
+      opponent: TUNED,
+      matches,
+      seed: 60_060,
+      worlds,
+      solveFrom: arm.solveFrom,
+      solveMode: arm.solveMode,
+    })
+    spent += result.matches
+    const seconds = (Date.now() - started) / 1000
+    console.log(
+      `  ${arm.label.padEnd(24)} ${pct(result.lossRate)} ± ${pct(result.error * 2)}   ${seconds.toFixed(0)}s`,
+    )
+  }
 }
 
 /**
@@ -558,6 +593,9 @@ async function main(): Promise<void> {
         break
       case 'gauntlet':
         await gauntlet(pool)
+        break
+      case 'endgame':
+        await endgame(pool)
         break
       case 'exploit':
         await exploit(pool)

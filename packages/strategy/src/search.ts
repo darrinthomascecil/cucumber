@@ -1,6 +1,7 @@
 import { cloneCounts, type Counts } from './classes.ts'
 import { sampleWorld, type InfoSet } from './determinize.ts'
 import { heuristicPolicy, scoreCandidate, TUNED, type Weights } from './heuristic.ts'
+import { solveChoices, type SolveOptions } from './endgame.ts'
 import { handValue, settleHand, type ContinuationModel } from './outcome.ts'
 import type { Random } from './random.ts'
 import {
@@ -37,6 +38,14 @@ export interface SearchOptions {
    * be measured rather than assumed.
    */
   inference?: boolean
+  /**
+   * Hand size at or below which each imagined deal is solved exactly instead
+   * of played out with the heuristic. 0 disables it.
+   */
+  solveFrom?: number
+  /** Whether the solve assumes the others play well, or play the heuristic. */
+  solveMode?: 'optimal' | 'model'
+  solveNodeBudget?: number
 }
 
 export interface ActionValue {
@@ -50,6 +59,11 @@ export interface SearchResult {
   worlds: number
   /** The value of playing the best action — the position's own odds. */
   best: number
+}
+
+/** Cards in hand for the seat doing the thinking. */
+function handSizeOf(info: InfoSet): number {
+  return info.handSizes[info.seat]!
 }
 
 function buildSim(
@@ -104,9 +118,27 @@ export function searchActions(
   const policies: [Policy, Policy, Policy] = [policy, policy, policy]
   const totals = new Float64Array(actions.length)
 
+  // Once the hands are short enough, stop guessing at each imagined deal and
+  // work it out exactly.
+  const solveFrom = options.solveFrom ?? 0
+  const solving = solveFrom > 0 && handSizeOf(info) <= solveFrom
+  const solveOptions: SolveOptions = {
+    opponents:
+      options.solveMode === 'optimal'
+        ? { kind: 'optimal' }
+        : { kind: 'model', seat: info.seat, policy },
+    nodeBudget: options.solveNodeBudget ?? 200_000,
+    ...(options.continuation ? { continuation: options.continuation } : {}),
+  }
+
   for (let w = 0; w < worlds; w++) {
     const hands = sampleWorld(info, random)
     const base = buildSim(info, trick, hands)
+    if (solving) {
+      const solved = solveChoices(base, info.seat, actions, solveOptions)
+      for (let a = 0; a < actions.length; a++) totals[a]! += solved.values[a]![info.seat]!
+      continue
+    }
     for (let a = 0; a < actions.length; a++) {
       const sim = cloneSim(base)
       commit(sim, info.seat, actions[a]!)

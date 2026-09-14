@@ -82,10 +82,19 @@ export function searchPlayer(
   worlds = 48,
   exchange = 3,
   inference = true,
+  solveFrom = 0,
+  solveMode: 'optimal' | 'model' = 'model',
 ): Player {
   return {
     name,
-    policy: searchPolicy(random, { worlds, weights, maxActions: 10, inference }),
+    policy: searchPolicy(random, {
+      worlds,
+      weights,
+      maxActions: 10,
+      inference,
+      solveFrom,
+      solveMode,
+    }),
     exchangeSize: () => exchange,
     takeExchange: (_hand, size) => size,
     discards: weightedDiscards(weights),

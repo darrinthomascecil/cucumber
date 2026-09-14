@@ -29,6 +29,9 @@ export interface TrialTask {
   oracle?: boolean
   /** Narrow the imagined deals using public failures. Default on. */
   inference?: boolean
+  /** Hand size at or below which each imagined deal is solved exactly. */
+  solveFrom?: number
+  solveMode?: 'optimal' | 'model'
 }
 
 export interface TrialResult {
@@ -44,12 +47,23 @@ function build(
   worlds?: number,
   exchange = 3,
   inference = true,
+  solveFrom = 0,
+  solveMode: 'optimal' | 'model' = 'model',
 ): Player {
   if (typeof spec === 'string') {
     return spec === 'simple' ? simplePlayer('simple') : archetypePlayer(spec, exchange)
   }
   if (worlds && worlds > 0) {
-    return searchPlayer('search', spec, xorshift(seed), worlds, exchange, inference)
+    return searchPlayer(
+      'search',
+      spec,
+      xorshift(seed),
+      worlds,
+      exchange,
+      inference,
+      solveFrom,
+      solveMode,
+    )
   }
   return heuristicPlayer('heuristic', spec, exchange)
 }
@@ -76,6 +90,8 @@ parentPort?.on('message', (task: TrialTask) => {
     task.worlds,
     task.exchange,
     task.inference !== false,
+    task.solveFrom ?? 0,
+    task.solveMode ?? 'model',
   )
   const opponent = build(task.opponent, task.seed ^ 0x51ed270b, undefined, task.exchange)
   const outcome = trial(subject, opponent, task.matches, xorshift(task.seed), task.startIndex)
