@@ -57,6 +57,17 @@ export function Table({
     seat === mySeat ? 'me' : seat === leftSeat ? 'left' : 'right'
 
   const revealing = view.phase === 'FINAL_REVEAL' || view.phase === 'MATCH_OVER'
+
+  /*
+   * A finished trick is swept the instant the third card lands, so the client
+   * never sees a state containing all three plays — the last player's card
+   * went straight from unplayed to gone. At a real table the trick sits where
+   * it fell until somebody leads the next one, so show it that way: while the
+   * new trick is empty, the felt still holds the one just finished.
+   */
+  const settled = view.phase === 'TRICK_PLAY' && view.trick?.plays.length === 0 ? view.lastTrick : null
+  const onFelt = settled ?? view.trick
+  const winner = settled?.successfulSeat ?? view.trick?.successfulSeat ?? null
   // A fresh hand fans out across the table; cards drawn later just appear.
   const dealing = !revealing && hand.length === 13 && view.handNumber > 0
 
@@ -124,14 +135,14 @@ export function Table({
                 </div>
               ) : null}
 
-              {(view.trick?.plays ?? []).map((play, index) => {
+              {(onFelt?.plays ?? []).map((play, index) => {
                 const place = placeOf(play.seat)
-                const isTarget = view.trick?.successfulSeat === play.seat && play.successful
+                const isTarget = winner === play.seat && play.successful
                 return (
                   <div
                     className={`play play-${place}${play.successful ? '' : ' failed'}${
                       isTarget ? ' target' : ''
-                    }`}
+                    }${settled ? ' settled' : ''}`}
                     key={`${play.seat}-${index}-${play.cards.join('')}`}
                   >
                     {play.cards.map((card, at) => (
@@ -144,6 +155,12 @@ export function Table({
 
               {view.phase === 'LOBBY' ? (
                 <p className="centre-note">Waiting for the table.</p>
+              ) : settled ? (
+                <p className="centre-note settled-note">
+                  {winner === mySeat ? 'You take it' : `${nameOf(view, winner ?? mySeat)} takes it`}
+                  {' — '}
+                  {leadLine(view).toLowerCase()}
+                </p>
               ) : view.trick && view.trick.plays.length === 0 ? (
                 <p className="centre-note">{leadLine(view)}</p>
               ) : null}
@@ -157,7 +174,7 @@ export function Table({
           {prompt.message}
         </div>
 
-        {view.lastTrick && view.phase === 'TRICK_PLAY' ? (
+        {view.lastTrick && view.phase === 'TRICK_PLAY' && !settled ? (
           <div className="last-trick">
             <span className="felt-title">Last trick</span>
             {view.lastTrick.plays.map((play, index) => (

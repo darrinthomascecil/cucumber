@@ -453,6 +453,11 @@ button:focus-visible {
   transform: translate(-50%, -50%) translate(7.2rem, -1.6rem) rotate(8deg);
 }
 
+/* A trick that has been won but not yet gathered up. */
+.play.settled {
+  opacity: 0.85;
+}
+
 .play.failed {
   opacity: 0.78;
 }
@@ -484,6 +489,16 @@ button:focus-visible {
   margin: 0;
   color: var(--ink-dim);
   font-size: 0.9rem;
+}
+
+/* Sits below the settled trick rather than under it. */
+.centre-note.settled-note {
+  top: auto;
+  bottom: 6%;
+  transform: translate(-50%, 0);
+  font-size: 0.82rem;
+  color: var(--accent);
+  white-space: nowrap;
 }
 
 .centre .reveal {
