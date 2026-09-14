@@ -1340,3 +1340,74 @@ button.card {
   height: 100%;
   background: var(--accent-deep);
 }
+
+/* The two numbers over time; the gap between them is the whole point. */
+.accuracy-chart {
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.accuracy-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-said {
+  stroke: var(--accent);
+  fill: var(--accent);
+}
+
+.chart-happened {
+  stroke: var(--warn);
+  fill: var(--warn);
+}
+
+.accuracy-chart figcaption {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.68rem;
+  color: var(--ink-dim);
+}
+
+.chart-key::before {
+  content: '';
+  display: inline-block;
+  width: 0.7rem;
+  height: 2px;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+  border-radius: 1px;
+}
+
+.chart-key.said::before {
+  background: var(--accent);
+}
+
+.chart-key.happened::before {
+  background: var(--warn);
+}
+
+.chart-span {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.calibration-hint {
+  opacity: 0.75;
+}

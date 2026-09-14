@@ -25,6 +25,19 @@ export interface Bucket {
   actual: number
 }
 
+/** One settled match: what the advisor averaged, and what happened. */
+export interface MatchRecord {
+  expected: number
+  survived: boolean
+}
+
+/** A running read of both numbers after each match, for the chart. */
+export interface SeriesPoint {
+  matches: number
+  expected: number
+  actual: number
+}
+
 export interface Calibration {
   /** Settled predictions. */
   count: number
@@ -34,11 +47,21 @@ export interface Calibration {
   expected: number
   actual: number
   buckets: Bucket[]
+  series: SeriesPoint[]
+  /**
+   * Brier score: the mean squared distance between each claim and what
+   * happened. Zero is perfect; 0.25 is what you score by always saying 50%.
+   * It punishes confident mistakes far harder than hedged ones, which is
+   * exactly the failure worth watching for here.
+   */
+  brier: number
 }
 
 interface Store {
   samples: Sample[]
   matches: number
+  /** One entry per settled match, oldest first. */
+  history: MatchRecord[]
   /** Unsettled claims for the match in progress, keyed by state version. */
   openMatch: string | null
   open: Record<string, number>
@@ -47,7 +70,9 @@ interface Store {
 const KEY = 'cucumber.calibration.v1'
 const LIMIT = 4000
 
-const EMPTY: Store = { samples: [], matches: 0, openMatch: null, open: {} }
+const HISTORY_LIMIT = 600
+
+const EMPTY: Store = { samples: [], matches: 0, history: [], openMatch: null, open: {} }
 
 function load(): Store {
   try {
@@ -57,6 +82,7 @@ function load(): Store {
     return {
       samples: Array.isArray(parsed.samples) ? parsed.samples.slice(-LIMIT) : [],
       matches: typeof parsed.matches === 'number' ? parsed.matches : 0,
+      history: Array.isArray(parsed.history) ? parsed.history.slice(-HISTORY_LIMIT) : [],
       openMatch: typeof parsed.openMatch === 'string' ? parsed.openMatch : null,
       open: parsed.open && typeof parsed.open === 'object' ? parsed.open : {},
     }
@@ -87,6 +113,26 @@ function summarise(store: Store): Calibration {
     })
   }
 
+  const brier = count
+    ? samples.reduce((sum, s) => sum + (s.expected - (s.survived ? 1 : 0)) ** 2, 0) / count
+    : 0
+
+  // Running means after each match. Cumulative, not per match: one match is a
+  // single outcome shared by all its claims, so plotting it alone would be a
+  // chart of coin flips.
+  const series: SeriesPoint[] = []
+  let claimed = 0
+  let lived = 0
+  store.history.forEach((match, index) => {
+    claimed += match.expected
+    lived += match.survived ? 1 : 0
+    series.push({
+      matches: index + 1,
+      expected: claimed / (index + 1),
+      actual: lived / (index + 1),
+    })
+  })
+
   return {
     count,
     matches: store.matches,
@@ -94,6 +140,8 @@ function summarise(store: Store): Calibration {
     expected,
     actual,
     buckets,
+    series,
+    brier,
   }
 }
 
@@ -128,11 +176,14 @@ export function useCalibration(
     if (!finished || !matchId) return
     setStore((current) => {
       if (current.openMatch !== matchId) return current
-      const settled = Object.values(current.open).map((expected) => ({ expected, survived }))
-      if (settled.length === 0) return current
+      const claims = Object.values(current.open)
+      if (claims.length === 0) return current
+      const settled = claims.map((expected) => ({ expected, survived }))
+      const meanClaim = claims.reduce((sum, p) => sum + p, 0) / claims.length
       return {
         samples: [...current.samples, ...settled].slice(-LIMIT),
         matches: current.matches + 1,
+        history: [...current.history, { expected: meanClaim, survived }].slice(-HISTORY_LIMIT),
         openMatch: null,
         open: {},
       }
