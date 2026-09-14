@@ -299,20 +299,241 @@ async function search(pool: TrialPool): Promise<void> {
   const matches = flag('matches', 4000)
   const worlds = flag('worlds', 256)
   const weights = parseWeights(option('weights'), TUNED)
-  const started = Date.now()
-  const result = await measure(pool, {
-    subject: weights,
-    opponent: weights,
+  const both = args.includes('--compare')
+
+  const run = async (inference: boolean) => {
+    const started = Date.now()
+    const result = await measure(pool, {
+      subject: weights,
+      opponent: weights,
+      matches,
+      seed: 8080,
+      worlds,
+      inference,
+    })
+    spent += result.matches
+    return { result, seconds: (Date.now() - started) / 1000 }
+  }
+
+  console.log(`search, ${worlds} imagined deals per decision, against two heuristics`)
+  const withInference = await run(true)
+  if (!both) {
+    console.log(
+      `  ${thousands(withInference.result.matches)} matches in ${withInference.seconds.toFixed(1)}s`,
+    )
+    console.log(
+      `  search loses ${pct(withInference.result.lossRate)} ± ${pct(withInference.result.error * 2)}`,
+    )
+    console.log('  (parity is about 36%; lower means searching is worth it)')
+    return
+  }
+  const without = await run(false)
+  console.log(
+    `  imagining any consistent deal   ${pct(without.result.lossRate)} ± ${pct(without.result.error * 2)}`,
+  )
+  console.log(
+    `  ruling out what they can't hold ${pct(withInference.result.lossRate)} ± ${pct(withInference.result.error * 2)}`,
+  )
+  console.log(
+    `  reading the table is worth ${((without.result.lossRate - withInference.result.lossRate) * 100).toFixed(2)} points`,
+  )
+}
+
+/**
+ * How much is the hidden information actually worth?
+ *
+ * Three players, same rollout policy, measured the same way:
+ *   - the plain heuristic, as a floor;
+ *   - the honest search, which imagines the unseen cards;
+ *   - a cheat that is simply shown them.
+ *
+ * The gap between the last two is a ceiling on what any amount of better
+ * reasoning about unseen cards could possibly buy.
+ */
+async function oracle(pool: TrialPool): Promise<void> {
+  const matches = flag('matches', 30_000)
+  const worlds = flag('worlds', 256)
+  const searchMatches = flag('search-matches', 6000)
+
+  const floor = await measure(pool, {
+    subject: TUNED,
+    opponent: TUNED,
     matches,
-    seed: 8080,
+    seed: 4242,
+  })
+  spent += floor.matches
+
+  const honest = await measure(pool, {
+    subject: TUNED,
+    opponent: TUNED,
+    matches: searchMatches,
+    seed: 4243,
     worlds,
   })
-  spent += result.matches
-  const elapsed = (Date.now() - started) / 1000
-  console.log(`search (${worlds} deals per decision) against two heuristics`)
-  console.log(`  ${thousands(result.matches)} matches in ${elapsed.toFixed(1)}s`)
-  console.log(`  search loses ${pct(result.lossRate)} ± ${pct(result.error * 2)}`)
-  console.log('  (parity is about 36%; lower means searching is worth it)')
+  spent += honest.matches
+
+  const cheat = await measure(pool, {
+    subject: TUNED,
+    opponent: TUNED,
+    matches,
+    seed: 4244,
+    oracle: true,
+  })
+  spent += cheat.matches
+
+  console.log('one seat against two heuristics, lower is better:')
+  console.log(`  heuristic (no search)      ${pct(floor.lossRate)} ± ${pct(floor.error * 2)}   n=${thousands(floor.matches)}`)
+  console.log(`  honest search, ${String(worlds).padStart(4)} deals  ${pct(honest.lossRate)} ± ${pct(honest.error * 2)}   n=${thousands(honest.matches)}`)
+  console.log(`  shown every hand           ${pct(cheat.lossRate)} ± ${pct(cheat.error * 2)}   n=${thousands(cheat.matches)}`)
+  console.log('')
+  const searchGain = floor.lossRate - honest.lossRate
+  const remaining = honest.lossRate - cheat.lossRate
+  console.log(`  searching is worth      ${(searchGain * 100).toFixed(2)} points`)
+  console.log(`  seeing everything adds  ${(remaining * 100).toFixed(2)} points more`)
+  console.log('')
+  console.log(
+    `  so the search has captured ${((searchGain / (searchGain + remaining)) * 100).toFixed(0)}% of what perfect information is worth.`,
+  )
+}
+
+/**
+ * The champion against opponents that do not share its shape. A strategy that
+ * only wins inside the family it was bred in has not been shown to be strong.
+ */
+async function gauntlet(pool: TrialPool): Promise<void> {
+  const matches = flag('matches', 40_000)
+  const worlds = flag('worlds', 0)
+  const names = ['cheapest', 'dumper', 'panic', 'hoarder', 'wide', 'threshold']
+
+  console.log(
+    worlds > 0
+      ? `search (${worlds} deals) against two of each, lower is better:`
+      : 'the tuned heuristic against two of each, lower is better:',
+  )
+  let worst = 0
+  let worstName = ''
+  for (const name of names) {
+    const result = await measure(pool, {
+      subject: TUNED,
+      opponent: name,
+      matches,
+      seed: 71_077_345,
+      ...(worlds > 0 ? { worlds } : {}),
+    })
+    spent += result.matches
+    if (result.lossRate > worst) {
+      worst = result.lossRate
+      worstName = name
+    }
+    console.log(`  vs ${name.padEnd(12)} ${pct(result.lossRate)} ± ${pct(result.error * 2)}`)
+  }
+
+  console.log('')
+  console.log('and how those players do against each other, as a sanity check:')
+  for (const name of names) {
+    const result = await measure(pool, {
+      subject: name,
+      opponent: TUNED,
+      matches,
+      seed: 71_077_346,
+    })
+    spent += result.matches
+    console.log(`  ${name.padEnd(12)} against two champions: ${pct(result.lossRate)}`)
+  }
+  console.log('')
+  console.log(`worst case for the champion: ${pct(worst)} against ${worstName} (parity is about 36%)`)
+}
+
+/**
+ * Best-response probe. How badly can a strategy tuned *specifically* to beat
+ * the champion actually beat it? In game theory that gap is the honest measure
+ * of distance from equilibrium: a strategy nobody can exploit is a strategy
+ * with nothing left to fix.
+ */
+async function exploit(pool: TrialPool): Promise<void> {
+  const population = flag('population', 40)
+  const elite = flag('elite', 8)
+  const rounds = flag('rounds', 6)
+  const matches = flag('matches', 20_000)
+  const target = parseWeights(option('target'), TUNED)
+  const random = xorshift(flag('seed', 13_331))
+
+  const gaussian = (): number => {
+    const u = Math.max(1e-9, random.next())
+    const v = random.next()
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
+  }
+
+  let mean: Weights = { ...target }
+  let sigma: Weights = {
+    value: 0.6,
+    strength: 1.5,
+    low: 2,
+    high: 12,
+    width: 3,
+    gamma: 0.8,
+    panic: 12,
+    pressure: 1.2,
+  }
+  let best = { weights: { ...target }, loss: 1 }
+
+  console.log('hunting for a strategy that beats the champion')
+  console.log(`  ${rounds} rounds × ${population} candidates × ${thousands(matches)} matches`)
+  console.log('')
+
+  for (let round = 1; round <= rounds; round++) {
+    const candidates: Weights[] = [{ ...mean }]
+    for (let i = 1; i < population; i++) {
+      const sample = { ...mean }
+      for (const key of WEIGHT_KEYS) sample[key] = mean[key] + gaussian() * sigma[key]
+      candidates.push(clampWeights(sample))
+    }
+    const scored = await Promise.all(
+      candidates.map(async (weights, index) => {
+        const result = await measureOne(pool, {
+          subject: weights,
+          opponent: target,
+          matches,
+          seed: (round * 6151 + index * 24593) >>> 0,
+        })
+        spent += result.matches
+        return { weights, loss: result.lossRate }
+      }),
+    )
+    scored.sort((a, b) => a.loss - b.loss)
+    if (scored[0]!.loss < best.loss) best = scored[0]!
+
+    const top = scored.slice(0, elite)
+    const nextMean = { ...mean }
+    const nextSigma = { ...sigma }
+    for (const key of WEIGHT_KEYS) {
+      const values = top.map((entry) => entry.weights[key])
+      const average = values.reduce((a, b) => a + b, 0) / values.length
+      const variance = values.reduce((sum, v) => sum + (v - average) ** 2, 0) / values.length
+      nextMean[key] = average
+      nextSigma[key] = Math.max(Math.sqrt(variance), sigma[key] * 0.5)
+    }
+    mean = clampWeights(nextMean)
+    sigma = nextSigma
+    console.log(`round ${round}  best exploiter so far ${pct(best.loss)}`)
+  }
+
+  console.log('')
+  const confirm = await measure(pool, {
+    subject: best.weights,
+    opponent: target,
+    matches: flag('validate', 150_000),
+    seed: 909_090,
+  })
+  spent += confirm.matches
+  console.log(`best exploiter: ${compact(best.weights)}`)
+  console.log(
+    `confirmed over ${thousands(confirm.matches)} matches: it loses ${pct(confirm.lossRate)} ± ${pct(confirm.error * 2)}`,
+  )
+  console.log('')
+  console.log(
+    `parity is about 36%. The champion is exploitable by roughly ${((0.3648 - confirm.lossRate) * 100).toFixed(1)} points.`,
+  )
 }
 
 async function main(): Promise<void> {
@@ -331,6 +552,15 @@ async function main(): Promise<void> {
         break
       case 'search':
         await search(pool)
+        break
+      case 'oracle':
+        await oracle(pool)
+        break
+      case 'gauntlet':
+        await gauntlet(pool)
+        break
+      case 'exploit':
+        await exploit(pool)
         break
       default:
         console.error(`Unknown command: ${command}`)

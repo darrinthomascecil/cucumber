@@ -31,6 +31,12 @@ export interface SearchOptions {
   continuation?: ContinuationModel
   /** Cap on actions evaluated; the rest are dropped by heuristic score. */
   maxActions?: number
+  /**
+   * Whether to narrow the imagined deals using what the other players have
+   * publicly failed to do. On by default; the switch exists so the gain can
+   * be measured rather than assumed.
+   */
+  inference?: boolean
 }
 
 export interface ActionValue {
@@ -133,6 +139,7 @@ export function searchPolicy(random: Random, options: SearchOptions = {}): Polic
       mine: view.mine,
       handSizes: view.handSizes,
       scores: view.scores,
+      ...(options.inference === false ? {} : { failures: view.failures }),
     }
     const trick: TrickContext = {
       leaderSeat: view.leaderSeat,

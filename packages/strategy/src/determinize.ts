@@ -4,15 +4,16 @@ import {
   emptyCounts,
   fullDeckCounts,
   totalOf,
+  type CardClass,
   type Counts,
 } from './classes.ts'
 import type { Random } from './random.ts'
+import { canMeet } from './rules.ts'
 import type { SeatIndex } from './sim.ts'
 
 /**
  * Everything one player is allowed to know. Built only from their own cards
- * and cards that have been played to a trick in front of everyone — never
- * from the true deal.
+ * and what happened in front of everyone — never from the true deal.
  */
 export interface InfoSet {
   seat: SeatIndex
@@ -25,6 +26,17 @@ export interface InfoSet {
   /** How many cards each seat holds, including me. */
   handSizes: [number, number, number]
   scores: [number, number, number]
+  /**
+   * Per seat, every target that seat was publicly seen to fail against this
+   * hand.
+   *
+   * This is the richest thing the game gives away for free. A player only
+   * fails when their *whole hand* could not answer — and hands only ever
+   * shrink, never grow, during trick play. So a failure witnessed at any point
+   * is still true of the cards they are holding now, and it rules out worlds
+   * that a naive deal would happily invent.
+   */
+  failures?: CardClass[][][]
 }
 
 /** Cards that could be anywhere the player cannot see. */
@@ -39,11 +51,6 @@ export function unseenPool(info: InfoSet): Counts {
   return pool
 }
 
-/**
- * Deal the unseen cards into one concrete possibility consistent with
- * everything the player knows. Whatever is left over is the stock and the
- * face-down discards, which are dead for this hand.
- */
 export interface World {
   hands: [Counts, Counts, Counts]
   /** The stock and the face-down discards — dead for this hand, but a source
@@ -51,39 +58,150 @@ export interface World {
   rest: number[]
 }
 
-export function sampleWorld(info: InfoSet, random: Random): [Counts, Counts, Counts] {
-  return sampleFullWorld(info, random).hands
+/**
+ * A failure, expressed as something a hand cannot contain.
+ *
+ * `!canMeet(hand, target)` holds exactly when, for some position i in the
+ * sorted target, the hand has fewer than (n - i) cards of class at least
+ * target[i]. So every failure is a disjunction of simple counting statements:
+ * "at most k cards at or above class c". A single-card failure collapses to
+ * the strongest of them — at most zero cards at or above the target.
+ */
+interface CountLimit {
+  atOrAbove: CardClass
+  atMost: number
 }
 
-export function sampleFullWorld(info: InfoSet, random: Random): World {
-  const pool = unseenPool(info)
-  const bag: number[] = []
-  for (let c = 0; c < CLASS_COUNT; c++) {
-    for (let n = pool[c]!; n > 0; n--) bag.push(c)
+function limitsFor(target: readonly CardClass[]): CountLimit[] {
+  const n = target.length
+  const limits: CountLimit[] = []
+  for (let i = 0; i < n; i++) {
+    limits.push({ atOrAbove: target[i]!, atMost: n - i - 1 })
   }
-  // Fisher-Yates over the unseen cards.
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = random.int(i + 1)
-    const a = bag[i]!
-    bag[i] = bag[j]!
-    bag[j] = a
-  }
+  return limits
+}
 
-  const hands: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
-  hands[info.seat] = cloneCounts(info.hand)
-  let cursor = 0
-  for (let seat = 0; seat < 3; seat++) {
-    if (seat === info.seat) continue
-    const wanted = info.handSizes[seat]!
-    const counts = hands[seat as SeatIndex]
-    for (let n = 0; n < wanted; n++) {
-      const card = bag[cursor++]
-      if (card === undefined) throw new Error('Not enough unseen cards to deal a world')
-      counts[card]!++
+/**
+ * Draw `count` cards from `pool` without breaking any limit. Cards are taken
+ * one at a time from whatever is still allowed, so a constraint is satisfied
+ * by construction rather than by throwing away deals that violate it.
+ */
+function drawWithin(
+  pool: Counts,
+  count: number,
+  limits: readonly CountLimit[],
+  random: Random,
+): Counts | null {
+  const taken = emptyCounts()
+  const above = limits.map(() => 0)
+  for (let n = 0; n < count; n++) {
+    // A class is allowed if taking one more would not break any limit.
+    let eligible = 0
+    const allowed: boolean[] = new Array(CLASS_COUNT).fill(false)
+    for (let c = 0; c < CLASS_COUNT; c++) {
+      if (pool[c]! === 0) continue
+      let ok = true
+      for (let l = 0; l < limits.length; l++) {
+        if (c >= limits[l]!.atOrAbove && above[l]! + 1 > limits[l]!.atMost) {
+          ok = false
+          break
+        }
+      }
+      if (!ok) continue
+      allowed[c] = true
+      eligible += pool[c]!
+    }
+    if (eligible === 0) return null
+
+    let index = random.int(eligible)
+    let chosen = -1
+    for (let c = 0; c < CLASS_COUNT; c++) {
+      if (!allowed[c]) continue
+      index -= pool[c]!
+      if (index < 0) {
+        chosen = c
+        break
+      }
+    }
+    if (chosen < 0) return null
+
+    pool[chosen]!--
+    taken[chosen]!++
+    for (let l = 0; l < limits.length; l++) {
+      if (chosen >= limits[l]!.atOrAbove) above[l]!++
     }
   }
-  if (totalOf(hands[info.seat]) !== info.handSizes[info.seat]) {
-    throw new Error('Hand size disagrees with the information set')
+  return taken
+}
+
+/** How tightly each seat is pinned down, for ordering the deal. */
+function tightness(info: InfoSet, seat: SeatIndex): number {
+  let tightest = CLASS_COUNT
+  for (const target of info.failures?.[seat] ?? []) {
+    for (const limit of limitsFor(target)) {
+      if (limit.atMost === 0) tightest = Math.min(tightest, limit.atOrAbove)
+    }
   }
-  return { hands, rest: bag.slice(cursor) }
+  return tightest
+}
+
+/**
+ * Deal the unseen cards into one concrete possibility consistent with
+ * everything the player knows — including what the others have shown they
+ * cannot hold. Whatever is left over is the stock and the face-down discards.
+ */
+export function sampleFullWorld(info: InfoSet, random: Random, attempts = 8): World {
+  const basePool = unseenPool(info)
+  const others = ([0, 1, 2] as SeatIndex[]).filter((seat) => seat !== info.seat)
+  // The most pinned-down seat picks first, while cards that can satisfy it
+  // still remain in the pool.
+  const order = [...others].sort((a, b) => tightness(info, a) - tightness(info, b))
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const pool = cloneCounts(basePool)
+    const dealt: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
+    dealt[info.seat] = cloneCounts(info.hand)
+    let ok = true
+
+    for (const seat of order) {
+      // Each failure is a disjunction; pick one way of failing per attempt, so
+      // repeated sampling explores all of them rather than always the same one.
+      const limits: CountLimit[] = []
+      for (const target of info.failures?.[seat] ?? []) {
+        const choices = limitsFor(target)
+        limits.push(choices[random.int(choices.length)]!)
+      }
+      const drawn = drawWithin(pool, info.handSizes[seat]!, limits, random)
+      if (!drawn) {
+        ok = false
+        break
+      }
+      dealt[seat] = drawn
+    }
+    if (!ok) continue
+
+    if (totalOf(dealt[info.seat]) !== info.handSizes[info.seat]) {
+      throw new Error('Hand size disagrees with the information set')
+    }
+    const rest: number[] = []
+    for (let c = 0; c < CLASS_COUNT; c++) for (let n = pool[c]!; n > 0; n--) rest.push(c)
+    return { hands: dealt, rest }
+  }
+
+  // Nothing consistent could be built — which should not happen, since the
+  // real deal is always consistent. Fall back to an unconstrained one rather
+  // than leaving the search with no world at all.
+  const pool = cloneCounts(basePool)
+  const dealt: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
+  dealt[info.seat] = cloneCounts(info.hand)
+  for (const seat of order) {
+    dealt[seat] = drawWithin(pool, info.handSizes[seat]!, [], random) ?? emptyCounts()
+  }
+  const rest: number[] = []
+  for (let c = 0; c < CLASS_COUNT; c++) for (let n = pool[c]!; n > 0; n--) rest.push(c)
+  return { hands: dealt, rest }
+}
+
+export function sampleWorld(info: InfoSet, random: Random): [Counts, Counts, Counts] {
+  return sampleFullWorld(info, random).hands
 }

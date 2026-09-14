@@ -27,6 +27,12 @@ export interface Sim {
   playsMade: number
   /** Per seat, the cards that seat discarded face down and therefore saw. */
   seen: [Counts, Counts, Counts]
+  /**
+   * Per seat, every target that seat demonstrably could not meet this hand.
+   * Public: everyone watched them fail. This is the single richest piece of
+   * information the game gives away, and it is free.
+   */
+  failures: [CardClass[][], CardClass[][], CardClass[][]]
 }
 
 /**
@@ -49,6 +55,8 @@ export interface PolicyView {
   successfulSeat: SeatIndex
   handSizes: [number, number, number]
   scores: [number, number, number]
+  /** Targets each seat has been seen to fail against this hand. */
+  failures: [CardClass[][], CardClass[][], CardClass[][]]
 }
 
 export interface Candidate {
@@ -72,6 +80,7 @@ export function policyView(sim: Sim, seat: SeatIndex): PolicyView {
     successfulSeat: sim.successfulSeat,
     handSizes: [totalOf(sim.hands[0]), totalOf(sim.hands[1]), totalOf(sim.hands[2])],
     scores: sim.scores,
+    failures: sim.failures,
   }
 }
 
@@ -109,6 +118,9 @@ export function applyPlay(sim: Sim, seat: SeatIndex, candidate: Candidate): void
     // Spec §23: only a successful play replaces the target.
     sim.target = spread(candidate.counts)
     sim.successfulSeat = seat
+  } else {
+    // They could not meet this target, in front of everyone. Remember it.
+    sim.failures[seat].push([...sim.target])
   }
   sim.playsMade += 1
   sim.actionSeat = leftOfIndex(seat)
@@ -170,6 +182,11 @@ export function cloneSim(sim: Sim): Sim {
     successfulSeat: sim.successfulSeat,
     playsMade: sim.playsMade,
     seen: [cloneCounts(sim.seen[0]), cloneCounts(sim.seen[1]), cloneCounts(sim.seen[2])],
+    failures: [
+      sim.failures[0].map((target) => [...target]),
+      sim.failures[1].map((target) => [...target]),
+      sim.failures[2].map((target) => [...target]),
+    ],
   }
 }
 
@@ -188,5 +205,6 @@ export function newSim(
     successfulSeat: leaderSeat,
     playsMade: 0,
     seen: [emptyCounts(), emptyCounts(), emptyCounts()],
+    failures: [[], [], []],
   }
 }

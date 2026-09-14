@@ -13,6 +13,7 @@ import type { Random } from './random.ts'
 import { forcedLow } from './rules.ts'
 import { searchPolicy } from './search.ts'
 import {
+  type Sim,
   finalClasses,
   leftOfIndex,
   newSim,
@@ -80,10 +81,11 @@ export function searchPlayer(
   random: Random,
   worlds = 48,
   exchange = 3,
+  inference = true,
 ): Player {
   return {
     name,
-    policy: searchPolicy(random, { worlds, weights, maxActions: 10 }),
+    policy: searchPolicy(random, { worlds, weights, maxActions: 10, inference }),
     exchangeSize: () => exchange,
     takeExchange: (_hand, size) => size,
     discards: weightedDiscards(weights),
@@ -137,6 +139,8 @@ export function playHand(
   scores: [number, number, number],
   dealer: SeatIndex,
   random: Random,
+  /** Diagnostics only: hands the caller the live Sim before play starts. */
+  hook?: (sim: Sim) => void,
 ): HandRecord {
   const deck = shuffledDeck(random)
   const hands: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
@@ -166,6 +170,7 @@ export function playHand(
 
   const sim = newSim(hands, [...scores] as [number, number, number], dealer)
   sim.seen = seen
+  hook?.(sim)
   playOut(sim, [players[0].policy, players[1].policy, players[2].policy])
   const finals = finalClasses(sim)
   return { outcome: settleHand(scores, finals), finals, dealer }
@@ -181,11 +186,12 @@ export function playMatch(
   players: [Player, Player, Player],
   random: Random,
   maxHands = 60,
+  hook?: (sim: Sim) => void,
 ): MatchRecord {
   let scores: [number, number, number] = [0, 0, 0]
   let dealer = random.int(3) as SeatIndex
   for (let hand = 1; hand <= maxHands; hand++) {
-    const record = playHand(players, scores, dealer, random)
+    const record = playHand(players, scores, dealer, random, hook)
     scores = record.outcome.scores
     if (record.outcome.matchOver) {
       return { losers: record.outcome.losers, hands: hand, scores }

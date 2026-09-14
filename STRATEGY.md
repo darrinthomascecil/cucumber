@@ -175,6 +175,72 @@ successors. It had learned to beat one specific opponent, not to play
 Cucumber. That is why candidates are now scored against a gauntlet rather than
 a single sparring partner.
 
+## How much room is left — measured, not guessed
+
+Three experiments, run because guessing at this would have been worthless.
+
+**Is it exploitable?** Five million matches of cross-entropy search hunting
+specifically for a strategy that beats the champion. The best exploiter it
+found *was the champion itself*: 36.43% ± 0.25 against a parity of about
+36.5%. Within this policy family there is nothing left to take.
+
+**Is it only strong against its own family?** Six rule-based opponents that
+think in a different idiom — thresholds and conditionals rather than a
+weighted sum (`pnpm self-play gauntlet`, 40,000 matches each):
+
+```
+vs cheapest     0.01%      vs hoarder      0.01%
+vs panic        0.38%      vs threshold    0.04%
+vs wide         3.99%      vs dumper       8.91%
+```
+
+It beats every one of them decisively. Its strength is not an artefact of the
+family it was bred in.
+
+**What is the hidden information actually worth?** `pnpm self-play oracle`
+puts three players side by side, same rollout policy, one seat against two
+heuristics:
+
+```
+heuristic, no search        36.90% ± 0.56
+honest search, 256 deals    22.22% ± 1.07
+shown every hand             0.34% ± 0.07
+```
+
+A player who is simply *told* the other two hands almost never loses. That
+number is easy to misread, and I misread it at first.
+
+## The thing I got wrong
+
+Seeing that gap, I concluded the search was capturing only 40% of the
+available value and that there were twenty points waiting to be won by
+reasoning better about unseen cards. So I built it: the sampler now uses every
+failure the table has witnessed. A player who cannot meet a target has proved
+their whole hand could not answer it — and hands only shrink during trick
+play, so that proof still holds for the cards they are holding now. Worlds
+that contradict it are never dealt.
+
+It is worth **0.18 points** across 80,000 matches. Nothing.
+
+The mistake was conflating two different quantities. The oracle measures the
+value of *knowing*. It does not measure the value of *guessing better*. Almost
+all of that twenty-point gap is irreducible uncertainty — no strategy, however
+clever, can recover information it does not have. And the specific inference
+turns out to be thin in practice: because the strategy leads narrow, most
+failures are against high targets, so "holds nothing above an Ace" excludes
+only a sliver of the deck, and the cards that player then surrenders are
+public anyway.
+
+The inference is kept. It is correct, it costs nothing at runtime, and it
+would matter more against opponents who lead wide. But it is not a gain, and
+saying so is worth more than the feature.
+
+There is a second reading of the oracle result that is more useful: the cheat
+plays one ply deep with a heuristic continuation, and still wins 99.7% of
+matches. So searching *deeper* is not the missing ingredient either. Under
+perfect information this game is nearly trivial; all of its difficulty is the
+uncertainty, and the uncertainty is mostly not reducible.
+
 ## Where this is still wrong
 
 Honest limits, not disclaimers:
@@ -213,7 +279,10 @@ ten-million-match search a two-minute question rather than an overnight one.
 pnpm self-play sanity                       # throughput
 pnpm self-play cem --budget 10000000        # the full search above
 pnpm self-play matrix                       # the round robin
-pnpm self-play search --worlds 256          # search against the heuristic
+pnpm self-play gauntlet                     # against rule-based opponents
+pnpm self-play exploit                      # hunt for a counter-strategy
+pnpm self-play oracle                       # what hidden information is worth
+pnpm self-play search --worlds 256 --compare # with and without inference
 pnpm vitest run tests/strategy              # correctness, including the
                                             # information-constraint test
 ```
