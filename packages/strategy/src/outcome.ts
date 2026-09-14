@@ -41,8 +41,9 @@ export function settleHand(
  * *not* losing the match. Only the highest scorer loses, so what matters is
  * the gap to the others, not the absolute total.
  *
- * The shape is fitted from self-play; `tools/fit-continuation.ts` regenerates
- * the constants and the test in tests/strategy checks they still hold.
+ * The shape was chosen by grid search against play strength, not by taste:
+ * `pnpm self-play continuation` re-runs it. Flattening the curve (temperature
+ * 16) costs about 8 points of loss rate, so the guess does real work.
  */
 export interface ContinuationModel {
   /** Scale of the logistic in points. */

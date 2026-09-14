@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { beatsTarget, leadGroup, sortByTrickStrength } from '@cucumber/game-engine'
 import type { CardId, PlayerView, Seat } from '@cucumber/shared'
+import type { Advice } from '@cucumber/strategy'
+import { Advisor } from './Advisor.tsx'
 import { CardButton, CardFace } from './Card.tsx'
 import { Reveal } from './Reveal.tsx'
 
 interface Props {
   view: PlayerView
   connected: boolean
+  advice: Advice | null
+  advisorThinking: boolean
+  advisorMilliseconds: number
+  advisorWorlds: number
   onCommand: (command: Command) => void
 }
 
@@ -18,7 +24,15 @@ type Command =
   | { type: 'PLAY_CARDS'; cards: CardId[] }
   | { type: 'START_NEXT_MATCH' }
 
-export function Table({ view, connected, onCommand }: Props) {
+export function Table({
+  view,
+  connected,
+  advice,
+  advisorThinking,
+  advisorMilliseconds,
+  advisorWorlds,
+  onCommand,
+}: Props) {
   const [selected, setSelected] = useState<CardId[]>([])
 
   // Any change of turn or hand invalidates a half-made selection.
@@ -49,6 +63,9 @@ export function Table({ view, connected, onCommand }: Props) {
 
   const others = view.players.filter((player) => player.seat !== view.you.seat)
   const revealing = view.phase === 'FINAL_REVEAL' || view.phase === 'MATCH_OVER'
+  // The advisor's first choice, marked on the cards themselves. Suppressed
+  // once you start choosing so it never argues with your own selection.
+  const advised = new Set(selected.length === 0 ? (advice?.suggestions[0]?.cards ?? []) : [])
 
   return (
     <div className="table">
@@ -144,6 +161,15 @@ export function Table({ view, connected, onCommand }: Props) {
           {connected ? null : <span style={{ color: 'var(--danger)' }}>Reconnecting…</span>}
         </div>
 
+        {advice ? (
+          <Advisor
+            advice={advice}
+            thinking={advisorThinking}
+            milliseconds={advisorMilliseconds}
+            worlds={advisorWorlds}
+          />
+        ) : null}
+
         {hand.length > 0 ? (
           <div className="hand">
             {hand.map((card) =>
@@ -154,6 +180,7 @@ export function Table({ view, connected, onCommand }: Props) {
                   key={card}
                   id={card}
                   selected={selected.includes(card)}
+                  advised={advised.has(card)}
                   disabled={isDisabled(card)}
                   onToggle={toggle}
                 />

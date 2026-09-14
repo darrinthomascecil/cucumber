@@ -84,6 +84,9 @@ importers:
       '@cucumber/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@cucumber/strategy':
+        specifier: workspace:*
+        version: link:../../packages/strategy
       react:
         specifier: 19.0.0
         version: 19.0.0

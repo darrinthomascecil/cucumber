@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ClientCommand, PlayerView, Room, ServerMessage } from '@cucumber/shared'
+import type { CardId, ClientCommand, PlayerView, Room, ServerMessage } from '@cucumber/shared'
 
 export interface Rejection {
   code: string
@@ -8,6 +8,9 @@ export interface Rejection {
 
 export interface GameConnection {
   view: PlayerView | null
+  /** Cards this player threw into their own face-down discard — they saw
+   *  them, so the advisor may count them. Cleared each hand. */
+  discarded: CardId[]
   room: Room | null
   connected: boolean
   rejection: Rejection | null
@@ -30,6 +33,7 @@ export function useGame(enabled: boolean): GameConnection {
   const [room, setRoom] = useState<Room | null>(null)
   const [connected, setConnected] = useState(false)
   const [rejection, setRejection] = useState<Rejection | null>(null)
+  const [discarded, setDiscarded] = useState<CardId[]>([])
   const socketRef = useRef<WebSocket | null>(null)
   const viewRef = useRef<PlayerView | null>(null)
   const closedRef = useRef(false)
@@ -128,6 +132,9 @@ export function useGame(enabled: boolean): GameConnection {
       } as ClientCommand
       pendingRef.current = { command: full, retried: false }
       retryRef.current = false
+      if (full.type === 'SUBMIT_DISCARDS') {
+        setDiscarded((current) => [...current, ...full.cards])
+      }
       socket.send(JSON.stringify(full))
     },
     [],
@@ -135,5 +142,11 @@ export function useGame(enabled: boolean): GameConnection {
 
   const dismiss = useCallback(() => setRejection(null), [])
 
-  return { view, room, connected, rejection, send, dismiss }
+  // A new deal wipes the slate: last hand's discards are back in the deck.
+  const handNumber = view?.handNumber ?? 0
+  useEffect(() => {
+    setDiscarded([])
+  }, [handNumber])
+
+  return { view, room, connected, rejection, send, dismiss, discarded }
 }

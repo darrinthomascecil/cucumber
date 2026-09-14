@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Me } from './api.ts'
+import { useAdvisor } from './useAdvisor.ts'
 import { useGame } from './useGame.ts'
 import { Admin } from './components/Admin.tsx'
 import { Lobby } from './components/Lobby.tsx'
@@ -11,6 +12,9 @@ export function App() {
   const [checked, setChecked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAdmin, setShowAdmin] = useState(false)
+  const [advisorOn, setAdvisorOn] = useState(
+    () => window.localStorage.getItem('cucumber.advisor') === 'on',
+  )
 
   const signIn = useCallback(async (token: string) => {
     setError(null)
@@ -48,6 +52,13 @@ export function App() {
   }, [signIn])
 
   const game = useGame(me !== null)
+  const ADVISOR_WORLDS = 256
+  const advisor = useAdvisor(game.view, game.discarded, advisorOn, ADVISOR_WORLDS)
+
+  const toggleAdvisor = (on: boolean) => {
+    setAdvisorOn(on)
+    window.localStorage.setItem('cucumber.advisor', on ? 'on' : 'off')
+  }
 
   const signOut = async () => {
     await api.logout().catch(() => undefined)
@@ -81,6 +92,14 @@ export function App() {
           {game.view ? <small>Hand {game.view.handNumber}</small> : null}
         </div>
         <div className="topbar-actions">
+          <label className="toggle" title="Odds and suggested plays, worked out in your browser">
+            <input
+              type="checkbox"
+              checked={advisorOn}
+              onChange={(event) => toggleAdvisor(event.target.checked)}
+            />
+            Advisor
+          </label>
           <span>{me.displayName}</span>
           {me.isAdmin ? (
             <button className="link-button" type="button" onClick={() => setShowAdmin((on) => !on)}>
@@ -110,6 +129,10 @@ export function App() {
         <Table
           view={game.view}
           connected={game.connected}
+          advice={advisorOn ? advisor.advice : null}
+          advisorThinking={advisor.thinking}
+          advisorMilliseconds={advisor.milliseconds}
+          advisorWorlds={ADVISOR_WORLDS}
           onCommand={(command) => game.send(command)}
         />
       ) : game.room ? (

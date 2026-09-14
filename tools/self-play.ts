@@ -11,11 +11,13 @@
  */
 import {
   BASELINE,
+  DEFAULT_CONTINUATION,
   TUNED,
   duel,
   heuristicPlayer,
   playMatch,
   searchPlayer,
+  searchPolicyWith,
   simplePlayer,
   trial,
   xorshift,
@@ -224,7 +226,38 @@ function search(): void {
   console.log('  (parity is about 36%; lower means searching is worth it)')
 }
 
+/**
+ * The terminal value of a hand that does not end the match is a guess about
+ * the future. This grid-searches that guess directly against play strength.
+ */
+function continuation(): void {
+  const matches = flag('matches', 500)
+  const worlds = flag('worlds', 32)
+  const opponent = heuristicPlayer('heuristic', TUNED)
+  console.log(`default ${JSON.stringify(DEFAULT_CONTINUATION)}`)
+  console.log('temperature  headroom   loss')
+  for (const temperature of [3, 6.5, 10, 16]) {
+    for (const headroom of [0, 0.35, 0.8]) {
+      const measured = trial(
+        {
+          ...searchPlayer('search', TUNED, xorshift(2718), worlds),
+          policy: searchPolicyWith(TUNED, xorshift(2718), worlds, { temperature, headroom }),
+        },
+        opponent,
+        matches,
+        xorshift(606),
+      )
+      console.log(
+        `${String(temperature).padStart(11)}  ${String(headroom).padStart(8)}   ${pct(measured.lossRate)}`,
+      )
+    }
+  }
+}
+
 switch (command) {
+  case 'continuation':
+    continuation()
+    break
   case 'matrix':
     matrix()
     break

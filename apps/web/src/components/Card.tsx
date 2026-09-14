@@ -23,10 +23,12 @@ export function CardFace({ id, small }: Props) {
 interface ButtonProps extends Props {
   selected: boolean
   disabled: boolean
+  /** Marked by the advisor as its first choice. */
+  advised?: boolean
   onToggle: (id: CardId) => void
 }
 
-export function CardButton({ id, selected, disabled, onToggle }: ButtonProps) {
+export function CardButton({ id, selected, disabled, advised, onToggle }: ButtonProps) {
   const card = parseCard(id)
   const red = card.suit === 'H' || card.suit === 'D'
   const classes = [
@@ -34,6 +36,7 @@ export function CardButton({ id, selected, disabled, onToggle }: ButtonProps) {
     red ? 'red' : '',
     card.suit ? '' : 'joker',
     selected ? 'selected' : '',
+    advised && !disabled ? 'advised' : '',
   ]
   return (
     <button

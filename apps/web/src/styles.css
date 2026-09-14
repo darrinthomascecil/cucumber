@@ -617,3 +617,182 @@ button.card:disabled {
     width: 100%;
   }
 }
+
+/* ---------- advisor ---------- */
+
+.advisor {
+  border: 1px solid rgba(127, 209, 138, 0.28);
+  border-radius: 10px;
+  background: rgba(63, 143, 74, 0.08);
+  padding: 0.75rem 0.9rem;
+  display: grid;
+  gap: 0.65rem;
+  max-width: 34rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.advisor-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.advisor-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.advisor-meta {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.odds {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.odds-bar {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.odds-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  transition: width 220ms ease;
+}
+
+.odds-number {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+
+.odds-number strong {
+  font-size: 1.15rem;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.advice-best {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.15rem;
+}
+
+.advice-label {
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+  min-width: 3rem;
+}
+
+.advice-cards {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.advice-odds {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.advice-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+}
+
+.advice-alt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  opacity: 0.8;
+}
+
+.advice-cost {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--warn);
+}
+
+.advisor-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+}
+
+/* A card the advisor likes, marked without shouting. */
+button.card.advised::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 10px;
+  border: 2px dashed rgba(127, 209, 138, 0.85);
+  pointer-events: none;
+}
+
+button.card {
+  position: relative;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  appearance: none;
+  width: 2rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  position: relative;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.toggle input::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: var(--ink-dim);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.toggle input:checked {
+  background: rgba(63, 143, 74, 0.55);
+  border-color: rgba(127, 209, 138, 0.5);
+}
+
+.toggle input:checked::after {
+  transform: translateX(0.9rem);
+  background: var(--accent);
+}

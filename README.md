@@ -38,6 +38,27 @@ pnpm local:players Bob Charlie
 They play legally from the same sanitised view a browser receives. This is a
 development aid — the game itself has no computer opponents.
 
+## The advisor
+
+Toggle **Advisor** in the top bar and the table shows your odds of surviving
+the match and which card to play, with what the alternatives cost you. The
+setting is remembered per browser.
+
+It runs in a Web Worker *in your browser*, from your own sanitised view. The
+hidden cards live on the server and are never sent, so the rule that advice
+may use nothing but your hand and the cards everyone has watched being played
+is enforced by what is physically in the process — not by good intentions.
+`STRATEGY.md` explains what it believes and how it was found.
+
+## Self-play
+
+```bash
+pnpm self-play sanity      # 16,000 matches a second
+pnpm self-play matrix      # round robin between candidate strategies
+pnpm self-play tune        # search the weight space against a fixed opponent
+pnpm self-play search      # does searching beat the tuned heuristic?
+```
+
 ## Checks
 
 ```bash
@@ -53,12 +74,14 @@ playing the same cards. It needs `pnpm db:up` to be running.
 
 ```
 packages/game-engine   rules: ranking, legality, tricks, scoring, state machine
+packages/strategy      self-play, search, and the advisor (STRATEGY.md)
 packages/shared        types shared by the server and the browser
 packages/database      Prisma schema and client
 apps/server            Fastify, WebSockets, sessions, persistence
 apps/web               React + Vite
 tools/local-players.ts fills empty seats during development
-tests/                 rules, scenarios, integration
+tools/self-play.ts     the strategy harness
+tests/                 rules, scenarios, strategy, integration
 ```
 
 ## How the rules are enforced

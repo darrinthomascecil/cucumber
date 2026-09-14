@@ -8,7 +8,7 @@ import {
   type Counts,
 } from './classes.ts'
 import { heuristicPolicy, scoreCandidate, type Weights } from './heuristic.ts'
-import { settleHand, type HandOutcome } from './outcome.ts'
+import { settleHand, type ContinuationModel, type HandOutcome } from './outcome.ts'
 import type { Random } from './random.ts'
 import { forcedLow } from './rules.ts'
 import { searchPolicy } from './search.ts'
@@ -84,6 +84,16 @@ export function searchPlayer(
     takeExchange: (_hand, size) => size,
     discards: weightedDiscards(weights),
   }
+}
+
+/** A search policy with an explicit continuation model, for tuning it. */
+export function searchPolicyWith(
+  weights: Weights,
+  random: Random,
+  worlds: number,
+  continuation: ContinuationModel,
+): Policy {
+  return searchPolicy(random, { worlds, weights, maxActions: 10, continuation })
 }
 
 /** A deliberately weak opponent: always legal, never thoughtful. */
