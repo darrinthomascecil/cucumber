@@ -104,7 +104,7 @@ is done when its test passes, not when its code exists.
       finite-sample bias `E[p*(1−p*)]/K` that K playouts add.
       *Done when:* it prints floor ± band, and the bias correction has a test.
 
-- [~] **H6a — START HERE. Is the exchange prior the cause?** *(the next thing
+- [x] **H6a — CONFIRMED: the exchange prior is the cause.** *(the next thing
       to do, in this order — the first step needs no new code and could settle
       it outright.)*
 
@@ -328,3 +328,32 @@ entry goes here before the thing it describes has actually been run.
   measured at 4σ, so the test can be repeated with enough power to mean
   something. Until then the honest statement is: the oracle is optimistic, the
   reason is unproven, and no floor exists yet.
+
+- **H6a — confirmed, 6.5σ against 0.8σ.** `tools/exchange-control.ts`, 1,500
+  matches per arm, 150 oracle worlds, the prediction written down before the
+  run:
+
+  | | exchange 3 | exchange 0 |
+  |---|---|---|
+  | oracle claimed | 0.7133 | 0.6445 |
+  | actually survived | 0.6317 | 0.6344 |
+  | gap | **+0.0816, 6.5σ** | **+0.0101, 0.8σ** |
+  | reliability | 0.0071 | **0.0005** — passes H6's gate |
+
+  With no exchange the oracle is calibrated and its bins sit on the diagonal
+  (52→53, 69→67, 91→88). With the exchange on, the identical code goes 6.5σ
+  optimistic and every bin bends one way (52→40, 70→61, 91→84).
+
+  So the defect is `sampleFullWorld`'s prior: uniform over the unseen pool,
+  which is correct only when nobody exchanged. Players discard their *worst*
+  cards face down, so the leftover pool is systematically weak and the sampled
+  opponents are handed worse hands than they hold — which flatters the subject.
+
+  Yesterday's attempt at this same control was not the wrong experiment, only
+  too small: n=400 gave −4.7 points in the exchange-0 arm and it was read as a
+  refutation. At n=1500 that arm is +1.0 points, 0.8σ. The design was right and
+  the sample was a third of what the effect needed.
+
+  Next: the generative prior — sample hypothetical opponent *pre-discard* hands
+  and apply the fixed discard policy, using no hidden cards
+  (`REVIEW-BRIEF-2-FEEDBACK.md`). Then rerun `tools/floor.ts` against H6's gate.
