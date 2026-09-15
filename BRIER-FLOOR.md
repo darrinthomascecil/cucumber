@@ -139,7 +139,7 @@ is done when its test passes, not when its code exists.
       work on `origin/main`, whose scope conditions require "nobody exchanged
       cards this hand" for its uniform prior to be valid.
 
-- [!] **H6 — Validate the oracle before believing it.**
+- [x] **H6 — Validate the oracle before believing it.**
       `p*` is calibrated by construction, so its own bucket table must sit on
       the diagonal. If it does not, the estimator is wrong and every number
       after it is fiction.
@@ -357,3 +357,50 @@ entry goes here before the thing it describes has actually been run.
   Next: the generative prior — sample hypothetical opponent *pre-discard* hands
   and apply the fixed discard policy, using no hidden cards
   (`REVIEW-BRIEF-2-FEEDBACK.md`). Then rerun `tools/floor.ts` against H6's gate.
+
+- **H6 — PASSED, and there is a floor.** The generative exchange prior went
+  into `sampleFullWorld` as an optional `WorldPrior`: draw a hypothetical
+  pre-discard hand and let the seat's own discard policy choose what it would
+  have thrown. No hidden card is touched, and nothing is invented — the model
+  is the opponents' actual discard policy. Wired into `honestSurvival` only,
+  deliberately: the advisor uses the same sampler, and changing it changes how
+  it plays.
+
+  The control arm, rerun with the prior: gap +0.0816 at 6.5σ becomes **+0.0262
+  at 1.1σ**, reliability 0.0071 becomes **0.0015**.
+
+  `tools/floor.ts 400 200`, 7,154 positions:
+
+  | | |
+  |---|---|
+  | oracle reliability | **0.0016** (gate < 0.005) ✓ |
+  | direct `E[p*(1−p*)]` | **0.1667** |
+  | scored `Brier − v` | **0.1784 ± 0.0152** |
+  | the two disagree by | 0.0117, inside the band ✓ |
+
+  Both gates clear. Yesterday the estimators differed by 0.0418 against
+  ±0.0194; they now agree, which is the check that makes the number worth
+  quoting at all.
+
+  **The floor is ≈0.167** for this configuration.
+
+  | | |
+  |---|---|
+  | advisor Brier | 0.2074 ± 0.0217 |
+  | floor | 0.1667 |
+  | **headroom** | **0.0407** |
+
+  And the decomposition says what the headroom *is*. The advisor's reliability
+  is 0.0199 against the oracle's 0.0016, so about half the gap is
+  miscalibration rather than missing skill: its resolution, 0.0411 against
+  0.0535, already orders positions nearly as well as the best possible
+  forecaster. It says the wrong numbers about positions it ranks correctly.
+
+  Which points at the obvious next move: the advisor samples worlds with the
+  same function and is optimistic in the same direction. Giving it the prior is
+  H8, and it changes play, so it needs re-benchmarking against 23.58% ± 2.45%
+  and another ADVISOR_VERSION bump.
+
+  **Scope.** Three tuned heuristics, exchange 3. Your live game is three
+  advisors, where the uncertainty term differs; this number does not transfer.
+  That is H4a.

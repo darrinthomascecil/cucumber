@@ -1,4 +1,4 @@
-import { sampleFullWorld, type InfoSet } from './determinize.ts'
+import { sampleFullWorld, type InfoSet, type WorldPrior } from './determinize.ts'
 import { settleHand } from './outcome.ts'
 import { buildSim, type TrickContext } from './search.ts'
 import { heuristicPlayer, playHand, type Player } from './selfPlay.ts'
@@ -40,6 +40,13 @@ export interface HonestOracleOptions {
   players?: [Player, Player, Player]
   /** Safety valve; every hand adds at least 2 points to every score. */
   maxHands?: number
+  /**
+   * Cards each seat exchanged this hand. Public information, and without it
+   * the sampled worlds are drawn uniformly from the unseen cards — correct
+   * only when nobody exchanged. Supplying it is worth 8 points of calibration;
+   * see WorldPrior and tools/exchange-control.ts.
+   */
+  exchanged?: readonly [number, number, number]
 }
 
 export interface HonestEstimate {
@@ -71,11 +78,21 @@ export function honestSurvival(
   const maxHands = options.maxHands ?? 60
   const seat = info.seat
 
+  // The opponents' own discard policy models what they threw. Nothing is
+  // invented and no hidden card is touched: it draws a hypothetical
+  // pre-discard hand and asks that policy what it would have parted with.
+  const prior: WorldPrior | undefined = options.exchanged
+    ? {
+        exchanged: options.exchanged,
+        discards: (hand, n) => players[seat === 0 ? 1 : 0]!.discards(hand, n),
+      }
+    : undefined
+
   let survived = 0
 
   for (let w = 0; w < worlds; w++) {
     // A world consistent with everything this seat can see.
-    const hands = sampleFullWorld(info, random).hands
+    const hands = sampleFullWorld(info, random, prior).hands
     const sim = buildSim(info, trick, hands)
 
     // Finish the hand in progress, blind on all three sides.

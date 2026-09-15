@@ -91,7 +91,13 @@ const watching: Policy = (view, candidates) => {
       worlds: SEARCH_WORLDS,
       weights: TUNED,
     }).best
-    const honest = honestSurvival(info, trick, random, { worlds: oracleWorlds })
+    // Everyone here exchanges three, and it is public. Without this the
+    // sampled worlds are uniform over unseen cards, which flatters the seat by
+    // eight points of survival — see tools/exchange-control.ts.
+    const honest = honestSurvival(info, trick, random, {
+      worlds: oracleWorlds,
+      exchanged: [3, 3, 3],
+    })
     pending.push({ advisor, oracle: honest.survival, v: honest.bias })
   }
   return tuned.policy(view, candidates)

@@ -68,6 +68,32 @@ export function poolOvercount(info: InfoSet): number {
   return over
 }
 
+/**
+ * How the opponents' hands came to be what they are.
+ *
+ * Without this, a world is drawn uniformly from the unseen cards — which is
+ * correct only if nobody exchanged. Players who exchange throw their *worst*
+ * cards away face down, so the unseen pool is systematically weak and the
+ * hands they kept are systematically strong. Drawing uniformly hands them
+ * worse cards than they hold, and every estimate built on those worlds
+ * flatters the observer.
+ *
+ * Measured: with an exchange of 3 the honest oracle claimed 0.713 where 0.632
+ * survived, 6.5 sigma, reliability 0.0071. With no exchange and nothing else
+ * changed, 0.645 against 0.634 — 0.8 sigma, reliability 0.0005. The prior is
+ * the difference. See `tools/exchange-control.ts`.
+ *
+ * The model is generative and uses no hidden cards: draw a hypothetical
+ * pre-discard hand and let the seat's own discard policy choose what it would
+ * have thrown.
+ */
+export interface WorldPrior {
+  /** Cards each seat exchanged this hand. Public — everyone watched. */
+  exchanged: readonly [number, number, number]
+  /** What a hand would throw away, given the chance. */
+  discards: (hand: Counts, n: number) => Counts
+}
+
 export interface World {
   hands: [Counts, Counts, Counts]
   /** The stock and the face-down discards — dead for this hand, but a source
@@ -184,6 +210,8 @@ export function consistentWith(
 export function sampleFullWorld(
   info: InfoSet,
   random: Random,
+  /** Supplied where the exchange is known; omitted, the draw is uniform. */
+  prior?: WorldPrior,
   attempts = 8,
   /**
    * Unconstrained draws to try before falling back to construction.
@@ -215,15 +243,29 @@ export function sampleFullWorld(
     const dealt: [Counts, Counts, Counts] = [emptyCounts(), emptyCounts(), emptyCounts()]
     dealt[info.seat] = cloneCounts(info.hand)
     let ok = true
+    // Cards the imagined opponents threw away. They are unseen but they are
+    // not in anybody's hand, so they must leave the pool and reappear in the
+    // leftovers rather than being dealt to the next seat.
+    const thrown: number[] = []
     for (const seat of order) {
-      const drawn = drawWithin(pool, info.handSizes[seat]!, [], random)
+      const exchanged = prior?.exchanged[seat] ?? 0
+      const drawn = drawWithin(pool, info.handSizes[seat]! + exchanged, [], random)
       if (!drawn) {
         ok = false
         break
       }
+      if (exchanged > 0 && prior) {
+        const away = prior.discards(drawn, exchanged)
+        for (let c = 0; c < CLASS_COUNT; c++) {
+          for (let n = away[c]!; n > 0; n--) thrown.push(c)
+          drawn[c]! -= away[c]!
+        }
+      }
       dealt[seat] = drawn
     }
     if (!ok) break
+    // Checked after the discard, because it is the kept hand that has to be
+    // consistent with what the seat was seen to fail.
     let consistent = true
     for (const seat of constrained) {
       if (!consistentWith(dealt[seat], info.failures![seat]!)) {
@@ -232,7 +274,7 @@ export function sampleFullWorld(
       }
     }
     if (!consistent) continue
-    return { hands: dealt, rest: leftovers(pool) }
+    return { hands: dealt, rest: [...leftovers(pool), ...thrown] }
   }
 
   for (let attempt = 0; attempt < attempts; attempt++) {

@@ -82,7 +82,14 @@ function run(exchange: number): Arm {
         target: view.target,
         playsMade: view.playsMade,
       }
-      pending.push(honestSurvival(info, trick, random, { worlds, players: line }).survival)
+      pending.push(
+        honestSurvival(info, trick, random, {
+          worlds,
+          players: line,
+          // Everyone at this table exchanges the same number, and it is public.
+          ...(exchange > 0 ? { exchanged: [exchange, exchange, exchange] as const } : {}),
+        }).survival,
+      )
     }
     return tuned.policy(view, candidates)
   }
@@ -110,7 +117,7 @@ function run(exchange: number): Arm {
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
 const f = (x: number) => x.toFixed(4)
 
-console.log(`exchange control — ${matches} matches per arm, ${worlds} oracle worlds`)
+console.log(`exchange control — ${matches} matches per arm, ${worlds} oracle worlds, WITH generative prior`)
 console.log('')
 
 for (const exchange of [3, 0]) {
