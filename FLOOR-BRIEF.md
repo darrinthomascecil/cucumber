@@ -98,10 +98,24 @@ so skewed toward low ranks.
 It returns the survival frequency and `bias = p(1−p)/K`, the variance its own
 sampling adds.
 
-This departs from the advisor deliberately in two ways. The advisor plays each
-imagined world **face up** (perfect information), and it stops at the hand
-boundary and applies a fitted continuation value. Both would make a floor
-measure the approximation rather than the game.
+**Correction, 2026-09-15.** An earlier version of this brief said the advisor
+plays each imagined world face up and that blind playout was the point of
+difference. That is false. `searchActions` rolls out with `heuristicPolicy`,
+which receives a per-seat `PolicyView` and cannot see hidden hands; the
+perfect-information path is `solveChoices`, gated on `solveFrom > 0`, off by
+default. ADVISOR.md's "played as though all hands were visible" misnames the
+mechanism, and the error was repeated here without checking the code.
+
+So the oracle and the advisor share their sampler **and** their blind
+rollouts. The one genuine difference left is the continuation: the advisor
+stops at the hand boundary and applies a fitted value (two grid-searched
+numbers), while the oracle plays to the end of the match.
+
+That matters for diagnosis. Both estimators are optimistic — the advisor's
+reliability is 0.0199, the oracle's 0.0102 — and they share almost all of
+their machinery. A common cause is therefore more likely than two separate
+ones, and the shared component that is known to be wrong is the sampler's
+prior.
 
 ## 4. Reproduce it
 
@@ -168,8 +182,11 @@ estimator is wrong somewhere, and no floor can be reported.
 
 ## 7. The leading hypothesis, and why it is only a suspect
 
-**The sampler's posterior ignores the exchange.** `sampleFullWorld` draws the
-opponents' hands uniformly from the unseen pool. But every opponent has already
+**The sampler's posterior ignores the exchange.** Independently confirmed by a
+second reviewer (`REVIEW-BRIEF-2-FEEDBACK.md` §1): *"Accepting only consistent
+joint deals is correct for the specified uniform prior, though that prior still
+ignores exchange selection."* `sampleFullWorld` draws the opponents' hands
+uniformly from the unseen pool. But every opponent has already
 exchanged: they drew from stock and discarded their **worst** cards, face down.
 So the unseen pool is polluted with cards known to be bad, and the opponents'
 real hands are systematically better than a uniform draw suggests. Give

@@ -14,14 +14,21 @@ import type { Random } from './random.ts'
  * lowest Brier any forecaster can reach is `E[p*(1 − p*)]` — the uncertainty
  * that remains after conditioning on everything knowable.
  *
- * The one thing that makes it *honest*, and the whole reason it is not the
- * advisor's own estimate: each imagined world is played out by policies that
- * see only their own hand. The advisor plays its imagined worlds **face up**,
- * which credits every player with knowledge nobody has and is exactly why its
- * odds are optimistic. ADVISOR.md is explicit that this is its known weakness:
- * "it assumes you can act differently in worlds you cannot tell apart".
+ * Each imagined world is played out by policies that see only their own hand.
  *
- * It is also played to the end of the *match*, not the end of the hand. The
+ * NOTE, corrected 2026-09-15: earlier comments here claimed the advisor plays
+ * its imagined worlds **face up** and that this was the point of difference.
+ * That is false, and an outside review caught it. `searchActions` rolls out
+ * with `heuristicPolicy`, which receives a per-seat `PolicyView` and has no
+ * access to hidden hands; the perfect-information path is `solveChoices`,
+ * gated on `solveFrom > 0`, which defaults to off. ADVISOR.md's "played as
+ * though all hands were visible" describes a real weakness — these rollouts
+ * cannot value concealment, because the policies do not reason about
+ * information at all — but it misnames the mechanism, and I repeated it
+ * without checking the code.
+ *
+ * What remains genuinely different here: it is played to the end of the
+ * *match*, not the end of the hand. The
  * advisor stops at the hand boundary and applies a fitted continuation value —
  * two grid-searched numbers, by its own account the least-measured component
  * it has. A floor resting on a fitted guess would be measuring the guess.
