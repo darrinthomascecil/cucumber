@@ -142,6 +142,8 @@ export function viewFor(state: MatchState, seat: Seat): PlayerView {
     dealerSeat: state.dealerSeat,
     stockCount: state.stock.length,
     played: [...state.played],
+    completedTricks: structuredClone(state.completedTricks ?? (state.lastTrick ? [state.lastTrick] : [])),
+    historyComplete: state.completedTricks !== undefined,
     exchange: state.exchange
       ? {
           size: state.exchange.size,

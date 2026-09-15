@@ -61,6 +61,7 @@ export function createMatch(matchId: string, seats: SeatAssignment[]): MatchStat
     stock: [],
     discards: [],
     played: [],
+    completedTricks: [],
     exchange: null,
     trick: null,
     lastTrick: null,
@@ -125,6 +126,7 @@ function beginHand(state: MatchState, dealerSeat: Seat, ctx: EngineContext): Eng
   state.stock = dealt.stock
   state.discards = []
   state.played = []
+  state.completedTricks = []
   state.exchange = null
   state.trick = null
   state.lastTrick = null
@@ -350,6 +352,7 @@ function handlePlayCards(state: MatchState, seat: Seat, cards: CardId[]): Engine
 
   const leader = nextLeader(current)
   state.played = [...state.played, ...trickCards(current)]
+  state.completedTricks?.push(current)
   state.lastTrick = current
   events.push({
     type: 'TRICK_COMPLETED',
@@ -379,6 +382,7 @@ function handleStartNextMatch(state: MatchState): EngineEvent[] {
   state.stock = []
   state.discards = []
   state.played = []
+  state.completedTricks = []
   state.exchange = null
   state.trick = null
   state.lastTrick = null
