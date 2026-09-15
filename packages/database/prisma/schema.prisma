@@ -41,6 +41,7 @@ model User {
 
   matchPlayers MatchPlayer[]
   events       GameEvent[]
+  reviews      MatchReview[]
 
   @@map("users")
 }
@@ -58,6 +59,7 @@ model Match {
   state          GameState?
   events         GameEvent[]
   appliedActions AppliedAction[]
+  reviews        MatchReview[]
 
   @@map("matches")
 }
@@ -120,4 +122,29 @@ model AppliedAction {
 
   @@id([matchId, actionId])
   @@map("applied_actions")
+}
+
+/// A finished match, as judged afterwards: what the player did at each
+/// decision and what the advisor thought of it. Kept per player rather than
+/// per match — three people at one table each get their own review, and the
+/// evaluations are about the seat, not the table.
+///
+/// Stored whole rather than normalised into rows. It is written once, read
+/// whole, and never queried across matches; a table of decisions would buy
+/// nothing and cost a join.
+model MatchReview {
+  id        String   @id @default(uuid())
+  matchId   String   @map("match_id")
+  userId    String   @map("user_id")
+  /// Which advisor judged it. A review written by a superseded advisor is
+  /// still a record of what happened, but it is not evidence about this one.
+  advisor   String
+  summary   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("match_reviews")
 }

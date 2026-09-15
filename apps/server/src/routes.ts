@@ -13,6 +13,7 @@ import {
 } from './auth.ts'
 import { env } from './env.ts'
 import { joinRoom, roomFor, viewOf } from './matchService.ts'
+import { askAboutReview, type AskRequest } from './reviewChat.ts'
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.setErrorHandler((error, _request, reply) => {
@@ -67,6 +68,85 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const room = await roomFor(match.id)
     const view = await viewOf(match.id, user.id)
     return { room, view }
+  })
+
+  /**
+   * Keep a finished match's review, so it outlives the tab that made it.
+   *
+   * The browser is the only thing that has these evaluations — the advisor
+   * runs there — so the client posts them when a match ends. Writing is
+   * idempotent on (match, player): a reload must not leave two reviews of one
+   * match, and the second write is the same data anyway.
+   */
+  app.post<{ Body: { matchId?: string; advisor?: string; summary?: unknown } }>(
+    '/api/review',
+    async (request, reply) => {
+      const user = await requireUser(request)
+      const { matchId, advisor, summary } = request.body ?? {}
+      if (!matchId || !advisor || summary === undefined) {
+        return reply.code(400).send({ error: 'A review needs a match, an advisor and a summary.' })
+      }
+      const existing = await db().matchReview.findFirst({ where: { matchId, userId: user.id } })
+      if (existing) {
+        await db().matchReview.update({
+          where: { id: existing.id },
+          data: { advisor, summary: summary as object },
+        })
+        return { id: existing.id, replaced: true }
+      }
+      const saved = await db().matchReview.create({
+        data: { matchId, userId: user.id, advisor, summary: summary as object },
+      })
+      return { id: saved.id, replaced: false }
+    },
+  )
+
+  /** Your reviews, newest first. */
+  app.get('/api/review', async (request) => {
+    const user = await requireUser(request)
+    const reviews = await db().matchReview.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    return {
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        matchId: r.matchId,
+        advisor: r.advisor,
+        createdAt: r.createdAt,
+        summary: r.summary,
+      })),
+    }
+  })
+
+  /**
+   * Ask a question about a finished match.
+   *
+   * The client sends the evaluations it recorded while playing blind, because
+   * it is the only thing that has them — the advisor runs in the browser. The
+   * server's job is to put them in front of a local model with the units
+   * spelled out, and to keep the model's answer separate from the numbers it
+   * is describing.
+   */
+  app.post<{ Body: AskRequest }>('/api/review/ask', async (request, reply) => {
+    await requireUser(request)
+    const body = request.body
+    const question = body?.question?.trim()
+    if (!question) return reply.code(400).send({ error: 'Ask a question first.' })
+    if (question.length > 500) return reply.code(400).send({ error: 'That question is too long.' })
+    if (!Array.isArray(body.decisions)) {
+      return reply.code(400).send({ error: 'No review was attached to the question.' })
+    }
+    try {
+      return { answer: await askAboutReview(body) }
+    } catch (error) {
+      // A missing local model is the ordinary case here, not an emergency.
+      app.log.warn({ err: error }, 'review chat failed')
+      return reply.code(503).send({
+        error: 'The local model did not answer. Is ollama running?',
+      })
+    }
   })
 
   // --- Administration (spec §35) -------------------------------------------
