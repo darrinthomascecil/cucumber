@@ -30,6 +30,13 @@ import {
 import { forcedLow } from './rules.ts'
 
 /**
+ * Bumped whenever the advisor's judgement changes. The calibration panel
+ * discards any sample taken under a different version: a score that mixes two
+ * advisors describes neither of them, and the mixture is invisible on screen.
+ */
+export const ADVISOR_VERSION = '2026-09-14.1'
+
+/**
  * What a player has personally seen but no longer holds: the cards they threw
  * into their own face-down discard. Legal knowledge — they saw them — and
  * nobody else's discards are ever recorded here.

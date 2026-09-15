@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ADVISOR_VERSION } from '@cucumber/strategy'
 import type { PlayerView } from '@cucumber/shared'
 import type { Advice } from '@cucumber/strategy'
+import type { CalibrationStore, MatchRecord, Sample } from './calibrationTypes.ts'
+import { summarise, type Calibration } from './calibrationStats.ts'
 
 /**
  * Does "71%" mean anything?
@@ -9,139 +12,58 @@ import type { Advice } from '@cucumber/strategy'
  * match it was talking about finishes, the claim is settled against what
  * actually happened. Over enough matches the two numbers should agree — and if
  * they do not, the advisor is confidently wrong, which is worse than silent.
+ *
+ * What the panel reports is a sample statistic, so it wanders even when
+ * nothing has changed: the headline numbers carry a 95% interval taken over
+ * matches, and a move smaller than that band is noise rather than progress.
  */
-export interface Sample {
-  /** What the advisor said the chance of surviving the match was. */
-  expected: number
-  /** Whether this player did in fact survive it. */
-  survived: boolean
-}
-
-export interface Bucket {
-  from: number
-  to: number
-  count: number
-  expected: number
-  actual: number
-}
-
-/** One settled match: what the advisor averaged, and what happened. */
-export interface MatchRecord {
-  expected: number
-  survived: boolean
-}
-
-/** A running read of both numbers after each match, for the chart. */
-export interface SeriesPoint {
-  matches: number
-  expected: number
-  actual: number
-}
-
-export interface Calibration {
-  /** Settled predictions. */
-  count: number
-  matches: number
-  /** Predictions in the match still being played. */
-  pending: number
-  expected: number
-  actual: number
-  buckets: Bucket[]
-  series: SeriesPoint[]
-  /**
-   * Brier score: the mean squared distance between each claim and what
-   * happened. Zero is perfect; 0.25 is what you score by always saying 50%.
-   * It punishes confident mistakes far harder than hedged ones, which is
-   * exactly the failure worth watching for here.
-   */
-  brier: number
-}
-
-interface Store {
-  samples: Sample[]
-  matches: number
-  /** One entry per settled match, oldest first. */
-  history: MatchRecord[]
-  /** Unsettled claims for the match in progress, keyed by state version. */
-  openMatch: string | null
-  open: Record<string, number>
-}
+export type { Sample, MatchRecord } from './calibrationTypes.ts'
+export type { Bucket, SeriesPoint, Calibration } from './calibrationStats.ts'
 
 const KEY = 'cucumber.calibration.v1'
+/** Where a sample from a superseded advisor is kept. Discarding it outright
+ *  would throw away hundreds of matches that are still worth reading — they
+ *  just are not evidence about the advisor running now. */
+const ARCHIVE = 'cucumber.calibration.previous'
 const LIMIT = 4000
 
 const HISTORY_LIMIT = 600
 
-const EMPTY: Store = { samples: [], matches: 0, history: [], openMatch: null, open: {} }
+const EMPTY: CalibrationStore = {
+  samples: [],
+  matches: 0,
+  history: [],
+  openMatch: null,
+  open: {},
+  advisor: ADVISOR_VERSION,
+}
 
-function load(): Store {
+function load(): CalibrationStore {
   try {
     const raw = window.localStorage.getItem(KEY)
     if (!raw) return EMPTY
-    const parsed = JSON.parse(raw) as Partial<Store>
+    const parsed = JSON.parse(raw) as Partial<CalibrationStore>
+    // Claims made by a different advisor are not evidence about this one. The
+    // alternative is a score that quietly stops describing anything — which is
+    // how a window of 4000 predictions came to span more than one advisor.
+    if (parsed.advisor !== ADVISOR_VERSION) {
+      try {
+        window.localStorage.setItem(ARCHIVE, raw)
+      } catch {
+        // Keeping the old sample is a courtesy, not a requirement.
+      }
+      return EMPTY
+    }
     return {
       samples: Array.isArray(parsed.samples) ? parsed.samples.slice(-LIMIT) : [],
       matches: typeof parsed.matches === 'number' ? parsed.matches : 0,
       history: Array.isArray(parsed.history) ? parsed.history.slice(-HISTORY_LIMIT) : [],
       openMatch: typeof parsed.openMatch === 'string' ? parsed.openMatch : null,
       open: parsed.open && typeof parsed.open === 'object' ? parsed.open : {},
+      advisor: ADVISOR_VERSION,
     }
   } catch {
     return EMPTY
-  }
-}
-
-function summarise(store: Store): Calibration {
-  const { samples } = store
-  const count = samples.length
-  const expected = count ? samples.reduce((sum, s) => sum + s.expected, 0) / count : 0
-  const actual = count ? samples.filter((s) => s.survived).length / count : 0
-
-  const edges = [0, 0.2, 0.4, 0.6, 0.8, 1.0001]
-  const buckets: Bucket[] = []
-  for (let i = 0; i < edges.length - 1; i++) {
-    const from = edges[i]!
-    const to = edges[i + 1]!
-    const inside = samples.filter((s) => s.expected >= from && s.expected < to)
-    if (inside.length === 0) continue
-    buckets.push({
-      from,
-      to: Math.min(to, 1),
-      count: inside.length,
-      expected: inside.reduce((sum, s) => sum + s.expected, 0) / inside.length,
-      actual: inside.filter((s) => s.survived).length / inside.length,
-    })
-  }
-
-  const brier = count
-    ? samples.reduce((sum, s) => sum + (s.expected - (s.survived ? 1 : 0)) ** 2, 0) / count
-    : 0
-
-  // Running means after each match. Cumulative, not per match: one match is a
-  // single outcome shared by all its claims, so plotting it alone would be a
-  // chart of coin flips.
-  const series: SeriesPoint[] = []
-  let claimed = 0
-  let lived = 0
-  store.history.forEach((match, index) => {
-    claimed += match.expected
-    lived += match.survived ? 1 : 0
-    series.push({
-      matches: index + 1,
-      expected: claimed / (index + 1),
-      actual: lived / (index + 1),
-    })
-  })
-
-  return {
-    count,
-    matches: store.matches,
-    pending: Object.keys(store.open).length,
-    expected,
-    actual,
-    buckets,
-    series,
-    brier,
   }
 }
 
@@ -150,7 +72,7 @@ export function useCalibration(
   advice: Advice | null,
   adviceVersion: number | null,
 ): { calibration: Calibration; reset: () => void } {
-  const [store, setStore] = useState<Store>(() => load())
+  const [store, setStore] = useState<CalibrationStore>(() => load())
 
   // Write down every claim the advisor makes about a move of yours.
   const version = view?.version ?? null
@@ -163,7 +85,8 @@ export function useCalibration(
     setStore((current) => {
       // A new match abandons any claims never settled — a match left half
       // played proves nothing either way.
-      const fresh = current.openMatch === matchId ? current : { ...current, openMatch: matchId, open: {} }
+      const fresh =
+        current.openMatch === matchId ? current : { ...current, openMatch: matchId, open: {} }
       if (fresh.open[String(version)] !== undefined) return fresh
       return { ...fresh, open: { ...fresh.open, [String(version)]: claim } }
     })
@@ -178,14 +101,23 @@ export function useCalibration(
       if (current.openMatch !== matchId) return current
       const claims = Object.values(current.open)
       if (claims.length === 0) return current
-      const settled = claims.map((expected) => ({ expected, survived }))
+      const settled: Sample[] = claims.map((expected) => ({ expected, survived }))
       const meanClaim = claims.reduce((sum, p) => sum + p, 0) / claims.length
+      const outcome = survived ? 1 : 0
+      const record: MatchRecord = {
+        expected: meanClaim,
+        survived,
+        // This match's own Brier, kept so the headline can carry an interval
+        // taken over matches rather than over correlated predictions.
+        brier: claims.reduce((sum, p) => sum + (p - outcome) ** 2, 0) / claims.length,
+      }
       return {
         samples: [...current.samples, ...settled].slice(-LIMIT),
         matches: current.matches + 1,
-        history: [...current.history, { expected: meanClaim, survived }].slice(-HISTORY_LIMIT),
+        history: [...current.history, record].slice(-HISTORY_LIMIT),
         openMatch: null,
         open: {},
+        advisor: ADVISOR_VERSION,
       }
     })
   }, [finished, matchId, survived])

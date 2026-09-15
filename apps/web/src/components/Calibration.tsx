@@ -62,9 +62,14 @@ function AccuracyChart({ series }: { series: SeriesPoint[] }) {
   )
 }
 
+const pts = (value: number) => `${(value * 100).toFixed(value < 0.1 ? 1 : 0)}`
+
 export function Calibration({ stats, onReset }: Props) {
   const gap = stats.actual - stats.expected
   const enough = stats.matches >= 3
+  // The gap counts as real only once it clears the interval around it. Before
+  // that it is the same wobble you would get from a coin that never changed.
+  const meaningful = enough && Math.abs(gap) > stats.actualMargin && stats.actualMargin > 0
 
   return (
     <section className="calibration">
@@ -89,8 +94,11 @@ export function Calibration({ stats, onReset }: Props) {
               <span>advisor said</span>
             </span>
             <span className="calibration-figure">
-              <b className={enough && Math.abs(gap) > 0.08 ? 'off' : ''}>{pct(stats.actual)}</b>
+              <b className={meaningful ? 'off' : ''}>{pct(stats.actual)}</b>
               <span>actually survived</span>
+              {stats.actualMargin > 0 ? (
+                <span className="calibration-margin">±{pts(stats.actualMargin)} pts</span>
+              ) : null}
             </span>
           </div>
 
@@ -101,8 +109,18 @@ export function Calibration({ stats, onReset }: Props) {
             {stats.matches === 1 ? 'match' : 'matches'}
             {stats.pending > 0 ? ` · ${stats.pending} open` : ''}
             <br />
-            Brier {stats.brier.toFixed(3)} <span className="calibration-hint">(0.25 = guessing)</span>
+            Brier {stats.brier.toFixed(3)}
+            {stats.brierMargin > 0 ? ` ± ${stats.brierMargin.toFixed(3)}` : ''}{' '}
+            <span className="calibration-hint">(0.25 = guessing)</span>
           </div>
+
+          {stats.scored > 1 ? (
+            <p className="calibration-note">
+              Bands are 95%, taken over {stats.scored} matches rather than{' '}
+              {stats.count} predictions — claims inside one match share its single
+              outcome. A move smaller than the band is noise, not progress.
+            </p>
+          ) : null}
 
           {stats.buckets.length > 1 ? (
             <table className="calibration-table">

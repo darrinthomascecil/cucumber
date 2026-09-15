@@ -507,9 +507,16 @@ button:focus-visible {
   opacity: 0.9;
 }
 
+/* Only the second back overlaps the first. Shorthand `margin-inline` here put
+   the same negative margin on the trailing edge too, which dragged the count
+   underneath the pile — and since a card is positioned and the count is not,
+   the card painted over it and ate the leading digit. A stock of 12 read as 2. */
 .stock > .card {
-  margin-inline: -1.1rem;
   opacity: 0.85;
+}
+
+.stock > .card + .card {
+  margin-inline-start: -1.1rem;
 }
 
 .stock-count {
@@ -1285,9 +1292,20 @@ button.card {
   letter-spacing: -0.01em;
 }
 
-/* Far enough from the claim to be worth noticing. */
+/* Amber only when the gap is wider than the interval around it — an eight
+   point drift on forty matches is ordinary luck, and colouring it taught the
+   opposite of what the panel is for. */
 .calibration-figure b.off {
   color: var(--warn);
+}
+
+/* The 95% band. Quiet: it qualifies the number above it rather than competing
+   with it, and it is the same size as the label beneath. */
+.calibration-margin {
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
 }
 
 .calibration-figure span {
