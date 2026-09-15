@@ -94,6 +94,9 @@ export interface MatchState {
   discards: CardId[]
   /** Cards played out in completed tricks this hand. */
   played: CardId[]
+  completedTricks?: TrickState[]
+  discardedBySeat?: Record<Seat, CardId[]>
+  exchangeCounts?: Record<Seat, number>
   exchange: ExchangeState | null
   trick: TrickState | null
   lastTrick: TrickState | null
@@ -147,6 +150,7 @@ export interface PlayerView {
     score: number
     ready: boolean
     hand: CardId[]
+    discards: CardId[]
   }
   players: PublicPlayer[]
   handNumber: number
@@ -158,6 +162,17 @@ export interface PlayerView {
   exchange: { size: number; actingSeat: Seat | null; step: ExchangeStep } | null
   trick: TrickState | null
   lastTrick: TrickState | null
+  /** Each completed trick this hand, in order. Two branches added public
+   *  history independently — this is the union, deduplicated: `played` is the
+   *  flat card list the strategy package reads, `completedTricks` the
+   *  structured form the advisor's belief model walks. */
+  completedTricks: TrickState[]
+  /** How many cards each seat exchanged this hand, or null before the
+   *  exchange. Public — everyone watched the draws. */
+  exchangeCounts: Record<Seat, number> | null
+  /** False when the view was rebuilt from a snapshot that predates full
+   *  history, so a consumer needing complete observations can refuse. */
+  historyComplete: boolean
   handResult: HandResult | null
   losers: Seat[]
   /** Whose action the match is waiting on, if anyone's. */

@@ -10,3 +10,8 @@ packages/database/src/generated/
 
 # Local dev logs from tools/local-players.ts and friends
 .dev-*.log
+
+# Benchmark artifacts are generated; the checked-in TAP report is the
+# exception, because docs/advisor-endgame.md cites its numbers.
+/artifacts/*
+!/artifacts/advisor-endgame.tap
