@@ -81,7 +81,9 @@ function handSizeOf(info: InfoSet): number {
   return info.handSizes[info.seat]!
 }
 
-function buildSim(
+/** Exported for the honest oracle, which needs the same mid-hand position the
+ *  search builds — but plays it out blind instead of face up. */
+export function buildSim(
   info: InfoSet,
   trick: TrickContext,
   hands: [Counts, Counts, Counts],
