@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, type Me } from './api.ts'
 import { useAdvisor } from './useAdvisor.ts'
 import { useAutoplay } from './useAutoplay.ts'
 import { useCalibration } from './useCalibration.ts'
 import { useGame } from './useGame.ts'
+import { useReview } from './useReview.ts'
+import { ADVISOR_VERSION } from '@cucumber/strategy'
 import { Admin } from './components/Admin.tsx'
 import { Lobby } from './components/Lobby.tsx'
+import { Review } from './components/Review.tsx'
 import { Login, extractToken } from './components/Login.tsx'
 import { Table } from './components/Table.tsx'
 
@@ -19,6 +22,12 @@ export function App() {
   )
   const [autoplayOn, setAutoplayOn] = useState(
     () => window.localStorage.getItem('cucumber.autoplay') === 'on',
+  )
+  // Blind: the advisor still thinks, and is still recorded, but says nothing
+  // until the match is over. Playing with the answer on screen is a different
+  // game from playing and finding out afterwards how close you came.
+  const [blindOn, setBlindOn] = useState(
+    () => window.localStorage.getItem('cucumber.blind') === 'on',
   )
 
   const signIn = useCallback(async (token: string) => {
@@ -59,13 +68,62 @@ export function App() {
   const game = useGame(me !== null)
   const ADVISOR_WORLDS = 256
   // Autoplay needs the advisor's opinion even when the panel is hidden.
-  const advisor = useAdvisor(game.view, game.discarded, advisorOn || autoplayOn, ADVISOR_WORLDS)
+  const advisor = useAdvisor(
+    game.view,
+    game.discarded,
+    advisorOn || autoplayOn || blindOn,
+    ADVISOR_WORLDS,
+  )
+  const reviewer = useReview(game.view, advisor.advice, advisor.version)
+  // Shown once the match is over, and only for a match played blind — with the
+  // advisor on screen throughout there is nothing to find out afterwards.
+  const [reviewDismissed, setReviewDismissed] = useState<string | null>(null)
+  const matchOver = game.view?.phase === 'MATCH_OVER'
+  const showReview =
+    blindOn && matchOver && game.view !== null && reviewDismissed !== game.view.matchId
+
+  // Keep the review once the match is over. The advisor runs in this tab, so
+  // this is the only place these evaluations exist; a closed tab would take
+  // them with it. Idempotent server-side, so a reload does not duplicate.
+  const savedMatch = useRef<string | null>(null)
+  const finishedMatchId = matchOver && game.view ? game.view.matchId : null
+  useEffect(() => {
+    if (!blindOn || !finishedMatchId) return
+    if (savedMatch.current === finishedMatchId) return
+    if (reviewer.decisions.length === 0) return
+    savedMatch.current = finishedMatchId
+    void fetch('/api/review', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        matchId: finishedMatchId,
+        advisor: ADVISOR_VERSION,
+        summary: {
+          accuracy: reviewer.summary.accuracy,
+          decisions: reviewer.summary.decisions,
+          unscored: reviewer.summary.unscored,
+          totalCost: reviewer.summary.totalCost,
+          judged: reviewer.summary.judged.map((j) => ({
+            handNumber: j.handNumber,
+            played: j.played,
+            best: j.best?.cards ?? null,
+            cost: j.cost,
+            withinNoise: j.withinNoise,
+          })),
+        },
+      }),
+    }).catch(() => {
+      // Losing a review is not worth interrupting a game for.
+      savedMatch.current = null
+    })
+  }, [blindOn, finishedMatchId, reviewer.decisions.length, reviewer.summary])
   const { calibration, reset: resetCalibration } = useCalibration(
     game.view,
     advisor.advice,
     advisor.version,
   )
-  useAutoplay(game.view, advisor.advice, advisor.version, autoplayOn, game.send)
+  // Autoplay would be playing the very decisions the review is about.
+  useAutoplay(game.view, advisor.advice, advisor.version, autoplayOn && !blindOn, game.send)
 
   const toggleAdvisor = (on: boolean) => {
     setAdvisorOn(on)
@@ -77,6 +135,11 @@ export function App() {
     window.localStorage.setItem('cucumber.autoplay', on ? 'on' : 'off')
   }
 
+  const toggleBlind = (on: boolean) => {
+    setBlindOn(on)
+    window.localStorage.setItem('cucumber.blind', on ? 'on' : 'off')
+  }
+
   // Two tabs on the same game used to disagree. The toggles live in React
   // state, so turning autoplay off in one tab left another open tab happily
   // playing your seat — and nothing on screen said why. localStorage is the
@@ -85,6 +148,7 @@ export function App() {
     const sync = (event: StorageEvent) => {
       if (event.key === 'cucumber.advisor') setAdvisorOn(event.newValue === 'on')
       if (event.key === 'cucumber.autoplay') setAutoplayOn(event.newValue === 'on')
+      if (event.key === 'cucumber.blind') setBlindOn(event.newValue === 'on')
     }
     window.addEventListener('storage', sync)
     return () => window.removeEventListener('storage', sync)
@@ -130,6 +194,14 @@ export function App() {
             />
             Advisor
           </label>
+          <label className="toggle" title="Hide the advisor until the match ends, then score how you played">
+            <input
+              type="checkbox"
+              checked={blindOn}
+              onChange={(event) => toggleBlind(event.target.checked)}
+            />
+            Blind
+          </label>
           <label className="toggle" title="Play your seat automatically, taking the advisor's first choice">
             <input
               type="checkbox"
@@ -161,19 +233,30 @@ export function App() {
         </div>
       ) : null}
 
+      {showReview && game.view ? (
+        <Review summary={reviewer.summary} onDismiss={() => setReviewDismissed(game.view!.matchId)} />
+      ) : null}
+
       {showAdmin ? (
         <Admin onClose={() => setShowAdmin(false)} />
       ) : game.view ? (
         <Table
           view={game.view}
           connected={game.connected}
-          advice={advisorOn ? advisor.advice : null}
+          advice={advisorOn && !blindOn ? advisor.advice : null}
           advisorThinking={advisor.thinking}
           advisorMilliseconds={advisor.milliseconds}
           advisorWorlds={ADVISOR_WORLDS}
           calibration={calibration}
           onResetCalibration={resetCalibration}
-          onCommand={(command) => game.send(command)}
+          onCommand={(command) => {
+            // Recorded before sending: once the command lands the view moves
+            // on, and the advice on hand is about the position after the play.
+            if (command.type === 'PLAY_CARDS' || command.type === 'SUBMIT_DISCARDS') {
+              reviewer.note(command.cards)
+            }
+            game.send(command)
+          }}
         />
       ) : game.room ? (
         <Lobby room={game.room} youId={me.id} />

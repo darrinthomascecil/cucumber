@@ -1447,3 +1447,154 @@ button.card {
 .calibration-hint {
   opacity: 0.75;
 }
+
+/* ---------------------------------------------------------------------------
+   The review: how the match actually went, once it can no longer help you.
+
+   It sits over the felt rather than beside it, because it is the only thing
+   worth looking at when it appears. Quiet where you played well: a match with
+   no mistakes is a short panel and a single line, not a wall of green ticks
+   congratulating you for the obvious.
+   --------------------------------------------------------------------------- */
+.review {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: rgba(14, 33, 21, 0.92);
+  backdrop-filter: blur(3px);
+  z-index: 5;
+  overflow-y: auto;
+}
+
+.review-card {
+  width: min(560px, 100%);
+  background: var(--felt-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.6rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+}
+
+.review-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.review-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+.review-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: .7rem;
+  flex-wrap: wrap;
+}
+
+.review-verdict b {
+  font-size: 2.6rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.review-verdict span { color: var(--ink-dim); font-size: .92rem; }
+
+.review-sub {
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: .88rem;
+  line-height: 1.5;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.review-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: .7rem;
+  align-items: center;
+  padding: .55rem .7rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid transparent;
+}
+
+.review-row.costly { border-color: var(--warn); }
+
+.review-hand {
+  font-size: .74rem;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.review-what { font-size: .86rem; min-width: 0; }
+.review-what em { font-style: normal; color: var(--ink-dim); }
+
+.review-cost {
+  font-variant-numeric: tabular-nums;
+  font-size: .9rem;
+  white-space: nowrap;
+  color: var(--warn);
+}
+
+.review-cost.fine { color: var(--ink-dim); }
+
+.review-actions { display: flex; gap: .6rem; justify-content: flex-end; }
+
+/* Asking about the review in plain English. The answer sits beside the figures
+   it describes, never instead of them: a local model will occasionally
+   misdescribe a number, and that should look wrong rather than authoritative. */
+.review-ask {
+  display: flex;
+  gap: .5rem;
+  border-top: 1px solid var(--line);
+  padding-top: .9rem;
+}
+
+.review-ask input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: .5rem .65rem;
+  color: var(--ink);
+  font: inherit;
+  font-size: .88rem;
+}
+
+.review-ask input::placeholder { color: var(--ink-dim); }
+.review-ask input:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 1px; }
+
+.review-answer {
+  margin: 0;
+  font-size: .88rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.22);
+  border-left: 2px solid var(--accent-deep);
+  border-radius: 0 6px 6px 0;
+  padding: .6rem .75rem;
+}
+
+.review-answer.thinking, .review-answer.failed { color: var(--ink-dim); }
+.review-answer.failed { border-left-color: var(--warn); }
