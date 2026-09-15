@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { db } from '@cucumber/database'
 import {
   AuthError,
+  autoSignIn,
   clearSession,
   createInvite,
   currentUser,
@@ -25,7 +26,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/health', async () => ({ ok: true, service: 'cucumber' }))
 
   app.get('/api/me', async (request, reply) => {
-    const user = await currentUser(request)
+    // With DEV_AUTO_SIGN_IN the first visit mints its own session, so a local
+    // game needs neither an invitation nor a sign-in form.
+    const user = (await currentUser(request)) ?? (await autoSignIn(reply))
     if (!user) return reply.code(401).send({ error: 'Not signed in.' })
     return {
       id: user.id,

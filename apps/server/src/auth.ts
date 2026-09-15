@@ -76,6 +76,21 @@ export async function requireAdmin(request: FastifyRequest): Promise<User> {
   return user
 }
 
+/** Development only: the admin, seated without an invitation. Returns null
+ *  whenever the bypass is off, so callers can treat it as "no session". */
+export async function autoSignIn(reply: FastifyReply): Promise<User | null> {
+  if (!env.devAutoSignIn || env.isProduction) return null
+  const email = env.adminEmail.toLowerCase()
+  if (!email) return null
+  const user = await db().user.upsert({
+    where: { email },
+    update: { status: 'ACTIVE' },
+    create: { email, displayName: env.adminDisplayName, isAdmin: true, status: 'ACTIVE' },
+  })
+  issueSession(reply, user.id)
+  return user
+}
+
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }

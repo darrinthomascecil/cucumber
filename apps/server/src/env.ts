@@ -25,6 +25,18 @@ export const env = {
   /** Directory of the built web app, served in production. */
   webRoot: process.env.WEB_ROOT ?? '',
   isProduction: process.env.NODE_ENV === 'production',
+  /** Seat ADMIN_EMAIL straight away instead of demanding an invitation. This
+   *  is an authentication bypass, so it is a development convenience only and
+   *  the checks below refuse to let it boot anywhere it could matter. */
+  devAutoSignIn: process.env.DEV_AUTO_SIGN_IN === '1',
+}
+
+if (env.devAutoSignIn && env.isProduction) {
+  throw new Error('DEV_AUTO_SIGN_IN is a development convenience and cannot be used in production')
+}
+
+if (env.devAutoSignIn && !env.adminEmail) {
+  throw new Error('DEV_AUTO_SIGN_IN needs ADMIN_EMAIL: it says who to seat')
 }
 
 if (env.sessionSecret.length < 24) {
