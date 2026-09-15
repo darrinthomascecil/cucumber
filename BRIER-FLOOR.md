@@ -104,6 +104,41 @@ is done when its test passes, not when its code exists.
       finite-sample bias `E[p*(1−p*)]/K` that K playouts add.
       *Done when:* it prints floor ± band, and the bias correction has a test.
 
+- [~] **H6a — START HERE. Is the exchange prior the cause?** *(the next thing
+      to do, in this order — the first step needs no new code and could settle
+      it outright.)*
+
+      **Step 1, the control. Cheap, decisive, ~10 minutes.** With no exchange,
+      the sampler's uniform draw over unseen cards is *correct* — there is no
+      selection to model. So if the exchange prior is the cause, the oracle
+      must be calibrated in no-exchange games and miscalibrated with exchange 3.
+      `tools/floor.ts` hardcodes `exchangeSize: () => 3`; give it a flag and
+      run both arms at **n ≥ 1500 matches**, not 400. The earlier attempt at
+      this used n=400, where the standard error is 2.4 points against an effect
+      of ~4.6, and it read noise — that failure is the reason for the sample
+      size, not caution for its own sake.
+      *Settles it if:* reliability drops to ~0 at exchange 0 and stays at
+      ~0.010 at exchange 3. *Refutes it if:* both arms are equally biased, in
+      which case the cause is elsewhere and step 2 is wasted work.
+
+      **Step 2, only if step 1 confirms.** Build an exchange-aware prior into
+      `sampleFullWorld`. The method is in `REVIEW-BRIEF-2-FEEDBACK.md`: sample
+      hypothetical opponent *pre-discard* hands and apply the fixed discard
+      policy, using no actual hidden cards. That review measured such a prior
+      moving terminal survival on a held-out position from **62.264% to
+      68.392%, +6.128 points, 95% CI 5.716–6.540** — the right magnitude to
+      explain the oracle's 9.6-point optimism.
+
+      **Step 3.** Rerun `tools/floor.ts 400 200` and check H6's gate:
+      reliability < 0.005, and `direct` and `scored` agreeing inside their
+      bands. If both pass, H6 unblocks and H7 finally has a number.
+
+      **Independent corroboration already in hand**, from two directions
+      neither of which was looking for it: `REVIEW-BRIEF-2-FEEDBACK.md` §1
+      ("that prior still ignores exchange selection"), and the exact endgame
+      work on `origin/main`, whose scope conditions require "nobody exchanged
+      cards this hand" for its uniform prior to be valid.
+
 - [!] **H6 — Validate the oracle before believing it.**
       `p*` is calibrated by construction, so its own bucket table must sit on
       the diagonal. If it does not, the estimator is wrong and every number
