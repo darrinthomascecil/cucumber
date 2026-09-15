@@ -106,6 +106,14 @@ export function searchPlayer(
       inference,
       solveFrom,
       solveMode,
+      // What the opponents exchanged, and the policy they threw cards with.
+      // Both are this player's own, so nothing is assumed about them that is
+      // not already true of the table it is sitting at.
+      // A/B switch so the prior can be measured against itself at identical
+      // seeds rather than across runs. Default on.
+      ...(process.env.NO_EXCHANGE_PRIOR === '1'
+        ? {}
+        : { exchanged: [exchange, exchange, exchange] as const, discards: weightedDiscards(weights) }),
       ...(onEstimate ? { onEstimate } : {}),
     }),
     exchangeSize: () => exchange,

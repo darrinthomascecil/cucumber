@@ -213,7 +213,19 @@ const FIELDS: Field[] = [
  * is one policy and not two.
  */
 function searchOptions() {
-  return { worlds: SEARCH_WORLDS, weights: TUNED, maxActions: 14, screen: true, inference: true }
+  return {
+    worlds: SEARCH_WORLDS,
+    weights: TUNED,
+    maxActions: 14,
+    screen: true,
+    inference: true,
+    // The advisor's beliefs about the unseen cards. Omitted, its worlds are
+    // uniform over the pool, which is right only if nobody exchanged — and
+    // then this harness measures a different advisor from the one that ships.
+    ...(process.env.NO_EXCHANGE_PRIOR === '1'
+      ? {}
+      : { exchanged: [3, 3, 3] as const, discards: weightedDiscards(TUNED) }),
+  }
 }
 
 function searchPlayerAt(random: Random, name: string): Player {

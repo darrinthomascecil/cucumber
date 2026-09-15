@@ -359,6 +359,10 @@ function repair(
   }
 }
 
-export function sampleWorld(info: InfoSet, random: Random): [Counts, Counts, Counts] {
-  return sampleFullWorld(info, random).hands
+export function sampleWorld(
+  info: InfoSet,
+  random: Random,
+  prior?: WorldPrior,
+): [Counts, Counts, Counts] {
+  return sampleFullWorld(info, random, prior).hands
 }

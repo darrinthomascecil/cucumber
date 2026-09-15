@@ -151,7 +151,7 @@ is done when its test passes, not when its code exists.
       ADVISOR.md, plus the fraction of available skill the advisor captures.
       *Done when:* the table is in ADVISOR.md with its sample sizes.
 
-- [ ] **H8 — Close the gap, only if there is one.**
+- [x] **H8 — Done: a conditional win, off by default is not the answer either.**
       Conditional on H7. If the floor is materially below the advisor's Brier,
       test the honest estimate as the *displayed* probability, offline, and
       measure the change out-of-sample.
@@ -463,3 +463,58 @@ entry goes here before the thing it describes has actually been run.
   7,600×. 360 mirror matches at 40 worlds is 18.2 CPU-hours. Shard on a fixed
   count, never a wall clock: stopping on time over-samples fast shards, which
   are short matches, which is a biased set of outcomes.
+
+- **H8 — the prior helps enormously when its model is right, and hurts when it
+  is wrong.** Wired into the search path (`SearchOptions.exchanged` +
+  `discards`, threaded to both `sampleWorld` sites including the screen, so the
+  screen prunes on the same beliefs the survivors are judged on). Behind
+  `NO_EXCHANGE_PRIOR=1` so both arms can be measured at identical seeds.
+
+  **Play strength, paired, 4,000 matches, seed 8080:**
+
+  | | loses |
+  |---|---|
+  | prior OFF | 22.15% ± 1.31% |
+  | prior ON | **17.08% ± 1.19%** |
+
+  5.07 points, ~5.7σ, a 23% relative reduction. The OFF arm reproduces
+  ADVISOR.md's documented 22.22% ± 1.07%, which validates the harness. After
+  five consecutive negative results in this codebase, that is a real gain.
+
+  **But it is conditional on the opponent model being right.** The benchmark's
+  opponents are tuned heuristics and the prior models exactly their discard
+  policy. Against an archetype it does not model:
+
+  | opponent | model | OFF | ON |
+  |---|---|---|---|
+  | tuned heuristic | exact | 22.15% | **17.08%** |
+  | `dumper` | wrong | **3.53% ± 0.95** | 5.93% ± 1.22 |
+
+  Loss rate rises 68% relative, intervals not overlapping. A confident wrong
+  belief about the unseen cards is worse than no belief.
+
+  **Calibration splits the same way**, which H4a predicted from the
+  sign-change finding:
+
+  | field | Brier OFF → ON | reliability OFF → ON |
+  |---|---|---|
+  | tuned | 0.2074 → **0.1885** | 0.0199 → **0.0076** |
+  | dumper | 0.0657 → 0.0979 | 0.0213 → 0.0533 |
+  | wide | 0.0490 → 0.0679 | 0.0237 → 0.0421 |
+
+  Headroom against tuned nearly halves, 0.0407 → 0.0218. Against the weak
+  archetypes the advisor was already *under*confident — saying 83% where 95%
+  happened — and the prior pushes it further down, away from the truth.
+
+  **A measurement bug caught on the way.** The first calibration run came back
+  byte-identical to the pre-change table. Not a null result: `floor-fields.ts`
+  and `floor.ts` call `searchActions` directly, so they never saw a change made
+  in `searchPlayer`. Both now pass the prior. Had the numbers differed slightly
+  instead of exactly, this would have shipped as "calibration unchanged".
+
+  **Not shipped on by default.** The gain requires knowing the opponents'
+  discard policy, which is true in self-play and false against a human — the
+  case the app exists for. Shipping it on would optimise the benchmark at the
+  expense of the actual users. What it argues for is an *adaptive* prior that
+  learns the opponents' discard behaviour rather than assuming it, which is new
+  work and not this chunk.

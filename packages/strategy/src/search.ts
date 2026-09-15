@@ -1,5 +1,5 @@
 import { cloneCounts, type Counts } from './classes.ts'
-import { sampleWorld, type InfoSet } from './determinize.ts'
+import { sampleWorld, type InfoSet, type WorldPrior } from './determinize.ts'
 import { heuristicPolicy, scoreCandidate, TUNED, type Weights } from './heuristic.ts'
 import { solveChoices, type SolveOptions } from './endgame.ts'
 import { handValue, settleHand, type ContinuationModel } from './outcome.ts'
@@ -40,6 +40,17 @@ export interface SearchOptions {
   screen?: boolean
   /** Rollouts to spend screening, shared across every action. */
   screenBudget?: number
+  /**
+   * Cards each seat exchanged this hand, and what a hand would throw away.
+   *
+   * Without these the imagined worlds are drawn uniformly from the unseen
+   * cards, which is right only if nobody exchanged. Opponents discard their
+   * *worst* cards face down, so a uniform draw hands them weaker hands than
+   * they hold and the search is flattered. Worth 8 points of survival in the
+   * same estimator — see WorldPrior and tools/exchange-control.ts.
+   */
+  exchanged?: readonly [number, number, number]
+  discards?: (hand: Counts, n: number) => Counts
   /**
    * Called with this position's own odds each time a decision is actually
    * searched — the same number the app shows as the chance of surviving. It
@@ -125,6 +136,10 @@ export function searchActions(
 
   const policy: Policy = heuristicPolicy(weights)
   const policies: [Policy, Policy, Policy] = [policy, policy, policy]
+  const prior: WorldPrior | undefined =
+    options.exchanged && options.discards
+      ? { exchanged: options.exchanged, discards: options.discards }
+      : undefined
 
   /*
    * Cutting the action list by heuristic score asks the heuristic to rank
@@ -151,6 +166,9 @@ export function searchActions(
         budget: options.screenBudget ?? 1600,
         keep: maxActions,
         continuation: options.continuation,
+        // The screen must believe what the search believes, or it prunes on
+        // one distribution and the survivors are judged on another.
+        prior,
       })
     }
   }
@@ -170,7 +188,7 @@ export function searchActions(
   }
 
   for (let w = 0; w < worlds; w++) {
-    const hands = sampleWorld(info, random)
+    const hands = sampleWorld(info, random, prior)
     const base = buildSim(info, trick, hands)
     if (solving) {
       const solved = solveChoices(base, info.seat, actions, solveOptions)
@@ -209,12 +227,17 @@ function screenActions(
   trick: TrickContext,
   random: Random,
   policies: [Policy, Policy, Policy],
-  options: { budget: number; keep: number; continuation?: ContinuationModel },
+  options: {
+    budget: number
+    keep: number
+    continuation?: ContinuationModel
+    prior?: WorldPrior
+  },
 ): Candidate[] {
   const worlds = Math.max(4, Math.min(32, Math.floor(options.budget / actions.length)))
   const totals = new Float64Array(actions.length)
   for (let w = 0; w < worlds; w++) {
-    const hands = sampleWorld(info, random)
+    const hands = sampleWorld(info, random, options.prior)
     const base = buildSim(info, trick, hands)
     for (let a = 0; a < actions.length; a++) {
       const sim = cloneSim(base)
