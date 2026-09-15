@@ -171,7 +171,10 @@ function tightness(info: InfoSet, seat: SeatIndex): number {
  * Does this hand satisfy every failure recorded against a seat? A seat that
  * was seen to fail a target cannot be holding a hand that could have met it.
  */
-function consistentWith(hand: Counts, targets: readonly (readonly CardClass[])[]): boolean {
+export function consistentWith(
+  hand: Counts,
+  targets: readonly (readonly CardClass[])[],
+): boolean {
   for (const target of targets) {
     if (canMeet(hand, target)) return false
   }
