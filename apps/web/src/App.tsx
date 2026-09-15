@@ -77,6 +77,19 @@ export function App() {
     window.localStorage.setItem('cucumber.autoplay', on ? 'on' : 'off')
   }
 
+  // Two tabs on the same game used to disagree. The toggles live in React
+  // state, so turning autoplay off in one tab left another open tab happily
+  // playing your seat — and nothing on screen said why. localStorage is the
+  // shared truth between tabs, so follow it when another tab changes it.
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key === 'cucumber.advisor') setAdvisorOn(event.newValue === 'on')
+      if (event.key === 'cucumber.autoplay') setAutoplayOn(event.newValue === 'on')
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
+
   const signOut = async () => {
     await api.logout().catch(() => undefined)
     setMe(null)
