@@ -4,6 +4,7 @@
  */
 import { cpus } from 'node:os'
 import { Worker } from 'node:worker_threads'
+import type { MatchClaims } from '@cucumber/strategy'
 import type { TrialResult, TrialTask } from './trial-worker.ts'
 
 const WORKER_URL = new URL('./trial-worker.ts', import.meta.url)
@@ -122,4 +123,42 @@ export async function measure(
     error: Math.sqrt((rate * (1 - rate)) / matches),
     averageHands: hands / matches,
   }
+}
+
+/**
+ * Split a claim-recording run across the pool and gather every match record.
+ *
+ * Kept apart from `measure` because what comes back is not a rate but a
+ * sample: the whole point is to score each match's claims against that match's
+ * own outcome, and an average computed inside a worker would throw away
+ * exactly the structure the score depends on.
+ */
+export async function gatherClaims(
+  pool: TrialPool,
+  task: Omit<TrialTask, 'id' | 'matches' | 'startIndex' | 'claims'> & { matches: number },
+): Promise<{ records: MatchClaims[]; lossRate: number }> {
+  const chunks = pool.size
+  const per = Math.max(1, Math.floor(task.matches / chunks))
+  const jobs: Promise<TrialResult>[] = []
+  let start = 0
+  for (let i = 0; i < chunks; i++) {
+    const count = i === chunks - 1 ? task.matches - start : per
+    if (count <= 0) continue
+    jobs.push(
+      pool.run({
+        ...task,
+        claims: true,
+        id: i,
+        matches: count,
+        startIndex: start,
+        seed: (task.seed + i * 0x9e3779b1) >>> 0,
+      }),
+    )
+    start += count
+  }
+  const results = await Promise.all(jobs)
+  const records = results.flatMap((r) => r.records ?? [])
+  const losses = results.reduce((sum, r) => sum + r.losses, 0)
+  const matches = results.reduce((sum, r) => sum + r.matches, 0)
+  return { records, lossRate: matches ? losses / matches : 0 }
 }

@@ -41,6 +41,13 @@ export interface SearchOptions {
   /** Rollouts to spend screening, shared across every action. */
   screenBudget?: number
   /**
+   * Called with this position's own odds each time a decision is actually
+   * searched — the same number the app shows as the chance of surviving. It
+   * observes only: the move played is chosen exactly as it was before, so a
+   * run with an observer attached must score identically to one without.
+   */
+  onEstimate?: (value: number) => void
+  /**
    * Whether to narrow the imagined deals using what the other players have
    * publicly failed to do. On by default; the switch exists so the gain can
    * be measured rather than assumed.
@@ -248,6 +255,9 @@ export function searchPolicy(random: Random, options: SearchOptions = {}): Polic
     const result = searchActions(info, trick, random, options)
     const best = result.actions[0]
     if (!best) return 0
+    // Reported after the search and before the mapping back to candidates, so
+    // it fires once per searched decision and cannot alter the choice below.
+    options.onEstimate?.(result.best)
     // Map the chosen multiset back to the caller's candidate list.
     for (let i = 0; i < candidates.length; i++) {
       const counts = candidates[i]!.counts

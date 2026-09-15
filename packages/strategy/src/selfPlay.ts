@@ -91,6 +91,10 @@ export function searchPlayer(
    *  different player from the one in the app. */
   maxActions = 14,
   screen = true,
+  /** Observes this player's own odds at each searched decision. Passing it
+   *  changes nothing about how the player plays; it is how the offline
+   *  harness scores claims that were previously visible only in the browser. */
+  onEstimate?: (value: number) => void,
 ): Player {
   return {
     name,
@@ -102,6 +106,7 @@ export function searchPlayer(
       inference,
       solveFrom,
       solveMode,
+      ...(onEstimate ? { onEstimate } : {}),
     }),
     exchangeSize: () => exchange,
     takeExchange: (_hand, size) => size,
@@ -264,6 +269,58 @@ export function trial(
     averageHands: handTotal / matches,
     error: Math.sqrt((rate * (1 - rate)) / matches),
   }
+}
+
+/** One match's worth of claims, settled against what happened to the seat. */
+export interface MatchClaims {
+  /** Every number the advisor stated during this match, in order. */
+  claims: number[]
+  survived: boolean
+}
+
+export interface ClaimTrial {
+  records: MatchClaims[]
+  lossRate: number
+  matches: number
+}
+
+/**
+ * `trial`, but it also writes down what the subject claimed along the way.
+ *
+ * The subject is built per match rather than passed in, because the observer
+ * has to be attached when the player is constructed and the claims have to be
+ * attributable to one match — a single outcome is what settles them, and
+ * mixing two matches' claims under one outcome is exactly the mistake the
+ * browser panel takes care to avoid.
+ */
+export function claimTrial(
+  makeSubject: (onEstimate: (value: number) => void) => Player,
+  opponent: Player,
+  matches: number,
+  random: Random,
+  startIndex = 0,
+): ClaimTrial {
+  const records: MatchClaims[] = []
+  let losses = 0
+  let claims: number[] = []
+  const subject = makeSubject((value) => claims.push(value))
+
+  for (let m = 0; m < matches; m++) {
+    const seat = ((startIndex + m) % 3) as SeatIndex
+    const line: [Player, Player, Player] = [opponent, opponent, opponent]
+    line[seat] = subject
+    // A fresh array per match; the observer pushes into whichever one this
+    // variable currently holds, and the reference handed to `records` keeps
+    // filling until the next match replaces it.
+    claims = []
+    const filling = claims
+    const record = playMatch(line, random)
+    const survived = !record.losers.includes(seat)
+    if (!survived) losses++
+    records.push({ claims: filling, survived })
+  }
+
+  return { records, lossRate: losses / matches, matches }
 }
 
 export interface FinalStats {

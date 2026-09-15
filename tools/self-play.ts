@@ -5,6 +5,7 @@
  *   pnpm self-play cem --budget 10000000
  *   pnpm self-play matrix
  *   pnpm self-play search --worlds 256
+ *   pnpm self-play brier --matches 400
  *
  * Every player sees only its own hand, the cards played in front of everyone,
  * and the public counts and scores — the PolicyView it is handed contains
@@ -12,13 +13,15 @@
  */
 import {
   BASELINE,
+  brierBand,
+  decompose,
   DEFAULT_CONTINUATION,
   TUNED,
   WEIGHT_KEYS,
   xorshift,
   type Weights,
 } from '@cucumber/strategy'
-import { TrialPool, measure, measureOne } from './pool.ts'
+import { TrialPool, gatherClaims, measure, measureOne } from './pool.ts'
 
 const args = process.argv.slice(2)
 const command = args[0] ?? 'sanity'
@@ -571,6 +574,63 @@ async function exploit(pool: TrialPool): Promise<void> {
   )
 }
 
+/**
+ * Score the advisor's own odds, the way the browser panel does but at a
+ * thousand matches a minute instead of a few an evening.
+ */
+async function brier(pool: TrialPool): Promise<void> {
+  const matches = flag('matches', 400)
+  const worlds = flag('worlds', 256)
+  const weights = parseWeights(option('weights'), TUNED)
+  const against = parseWeights(option('opponent'), weights)
+
+  const started = Date.now()
+  const { records, lossRate } = await gatherClaims(pool, {
+    subject: weights,
+    opponent: against,
+    matches,
+    seed: flag('seed', 8080),
+    worlds,
+    inference: true,
+  })
+  spent += matches
+  const seconds = (Date.now() - started) / 1000
+
+  const scored = records.filter((r) => r.claims.length > 0)
+  const claims = scored.flatMap((r) => r.claims.map((p) => ({ p, y: r.survived ? 1 : 0 })))
+  if (claims.length === 0) {
+    console.log('no claims recorded — did the subject search at all?')
+    return
+  }
+  // Per match, because matches are the independent events — every claim
+  // inside one shares that match's single outcome.
+  const perMatch = scored.map((r) => {
+    const y = r.survived ? 1 : 0
+    return r.claims.reduce((sum, p) => sum + (p - y) ** 2, 0) / r.claims.length
+  })
+  const d = decompose(claims)
+  const band = brierBand(perMatch)
+
+  console.log(`advisor odds, ${worlds} imagined deals per decision`)
+  console.log(`  ${thousands(scored.length)} matches in ${seconds.toFixed(1)}s`)
+  console.log(
+    `  ${thousands(claims.length)} claims, ${(claims.length / scored.length).toFixed(1)} per match`,
+  )
+  console.log(`  survived ${pct(1 - lossRate)}, advisor said ${pct(d.bins.length ? claims.reduce((t, c) => t + c.p, 0) / claims.length : 0)}`)
+  console.log(`  Brier ${d.brier.toFixed(4)} ± ${band.toFixed(4)}`)
+  console.log(`    uncertainty  ${d.uncertainty.toFixed(4)}   (no skill at all)`)
+  console.log(`  − resolution   ${d.resolution.toFixed(4)}   (what its ordering is worth)`)
+  console.log(`  + reliability  ${d.reliability.toFixed(4)}   (what its overconfidence costs)`)
+  console.log(`    residual     ${d.residual.toFixed(6)}   (binning remainder)`)
+  console.log(`  perfectly calibrated, same ordering: ${(d.uncertainty - d.resolution).toFixed(4)}`)
+  console.log('  said   happened      n')
+  for (const b of d.bins) {
+    console.log(
+      `  ${pct(b.said).padStart(6)} ${pct(b.happened).padStart(9)} ${thousands(b.count).padStart(6)}`,
+    )
+  }
+}
+
 async function main(): Promise<void> {
   const pool = new TrialPool(flag('workers', Math.max(1, Math.min(12, 12))))
   try {
@@ -590,6 +650,9 @@ async function main(): Promise<void> {
         break
       case 'oracle':
         await oracle(pool)
+        break
+      case 'brier':
+        await brier(pool)
         break
       case 'gauntlet':
         await gauntlet(pool)

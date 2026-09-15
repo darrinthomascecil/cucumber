@@ -2,12 +2,14 @@
 import { parentPort } from 'node:worker_threads'
 import {
   archetypePlayer,
+  claimTrial,
   heuristicPlayer,
   oracleTrial,
   searchPlayer,
   simplePlayer,
   trial,
   xorshift,
+  type MatchClaims,
   type Player,
   type Weights,
 } from '@cucumber/strategy'
@@ -32,6 +34,8 @@ export interface TrialTask {
   /** Hand size at or below which each imagined deal is solved exactly. */
   solveFrom?: number
   solveMode?: 'optimal' | 'model'
+  /** Also record what the subject claimed, so its odds can be scored. */
+  claims?: boolean
 }
 
 export interface TrialResult {
@@ -39,6 +43,8 @@ export interface TrialResult {
   losses: number
   matches: number
   hands: number
+  /** Present only when the task asked for claims. */
+  records?: MatchClaims[]
 }
 
 function build(
@@ -49,6 +55,7 @@ function build(
   inference = true,
   solveFrom = 0,
   solveMode: 'optimal' | 'model' = 'model',
+  onEstimate?: (value: number) => void,
 ): Player {
   if (typeof spec === 'string') {
     return spec === 'simple' ? simplePlayer('simple') : archetypePlayer(spec, exchange)
@@ -63,6 +70,9 @@ function build(
       inference,
       solveFrom,
       solveMode,
+      14,
+      true,
+      onEstimate,
     )
   }
   return heuristicPlayer('heuristic', spec, exchange)
@@ -94,6 +104,37 @@ parentPort?.on('message', (task: TrialTask) => {
     task.solveMode ?? 'model',
   )
   const opponent = build(task.opponent, task.seed ^ 0x51ed270b, undefined, task.exchange)
+
+  if (task.claims) {
+    // Built per run rather than reused, because the observer has to be in
+    // place before the first card is dealt.
+    const outcome = claimTrial(
+      (onEstimate) =>
+        build(
+          task.subject,
+          task.seed ^ 0x9e3779b9,
+          task.worlds,
+          task.exchange,
+          task.inference !== false,
+          task.solveFrom ?? 0,
+          task.solveMode ?? 'model',
+          onEstimate,
+        ),
+      opponent,
+      task.matches,
+      xorshift(task.seed),
+      task.startIndex,
+    )
+    parentPort?.postMessage({
+      id: task.id,
+      losses: Math.round(outcome.lossRate * task.matches),
+      matches: task.matches,
+      hands: 0,
+      records: outcome.records,
+    } satisfies TrialResult)
+    return
+  }
+
   const outcome = trial(subject, opponent, task.matches, xorshift(task.seed), task.startIndex)
   const result: TrialResult = {
     id: task.id,
