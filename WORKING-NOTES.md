@@ -1,0 +1,4 @@
+- 06:05 H7 — writing the floor into ADVISOR.md, plus correcting the "face up" claim this file was the origin of
+- 06:20 H4a — handed to a background agent: floor per opponent field, mirror field is the one that matters
+- 06:35 Adding notes + activity panels to the monitor. Notes are asserted, activity is measured; keeping them apart on purpose
+- 06:40 Next after H4a reports: H8, give the advisor the same exchange prior that fixed the oracle. Changes how it plays, so it needs re-benchmarking against 23.58%

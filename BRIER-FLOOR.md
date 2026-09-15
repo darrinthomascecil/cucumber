@@ -90,7 +90,7 @@ is done when its test passes, not when its code exists.
       *Done when:* unit tests show ≈1 from a won position, ≈0 from a lost one,
       and something between for a position that is genuinely uncertain.
 
-- [ ] **H4a — Measure the floor's dependence on the opposition.** *(added after
+- [x] **H4a — Measure the floor's dependence on the opposition.** *(added after
       H3, which showed it matters more than expected.)*
       Run `brier` against the heuristic, against the archetypes, and against a
       copy of the advisor itself. The floor is not one number for "this game";
@@ -146,7 +146,7 @@ is done when its test passes, not when its code exists.
       *Done when:* reliability < 0.005 over ≥300 matches. If it fails, stop
       and fix rather than reporting a floor.
 
-- [ ] **H7 — Write down the answer.**
+- [x] **H7 — Write down the answer.**
       Run at scale and record advisor Brier, floor, and base rate with bands in
       ADVISOR.md, plus the fraction of available skill the advisor captures.
       *Done when:* the table is in ADVISOR.md with its sample sizes.
@@ -404,3 +404,62 @@ entry goes here before the thing it describes has actually been run.
   **Scope.** Three tuned heuristics, exchange 3. Your live game is three
   advisors, where the uncertainty term differs; this number does not transfer.
   That is H4a.
+
+- **H7 — done.** ADVISOR.md now carries "How honest are its odds?": the floor
+  0.1667, the advisor 0.2074 ± 0.0217, headroom 0.0407, and the decomposition
+  showing resolution 0.0411 against a ceiling of 0.0535 while reliability is
+  0.0199 against 0.0016 — about half the gap is honesty rather than skill.
+
+  It also corrects that file. "It plays with its cards face up" was wrong about
+  the mechanism and was the origin of the error that spread into three other
+  files. And it writes in the three cautions rather than leaving them to
+  memory: the number is for one opponent field, bands are over matches, and
+  the control that proved the cause reached the opposite conclusion at n=400.
+
+- **H4a — done. The floor does not transfer; the headroom might.**
+  `tools/floor-fields.ts`, all rows exchange 3 with the oracle simulating the
+  line that actually played. Bands 95% over matches.
+
+  | field | floor (direct) | oracle reliability | advisor Brier | headroom |
+  |---|---|---|---|---|
+  | 2× `cheapest` | 0.0000 ± 0.0000 | 0.0000 ✓ | 0.0348 ± 0.0021 | 0.0348 |
+  | 2× `wide` | 0.0212 ± 0.0017 | 0.0000 ✓ | 0.0490 ± 0.0104 | 0.0279 |
+  | 2× `dumper` | 0.0448 ± 0.0039 | 0.0003 ✓ | 0.0657 ± 0.0136 | 0.0210 |
+  | three tuned | 0.1667 ± 0.0045 | 0.0016 ✓ | 0.2074 ± 0.0217 | 0.0407 |
+  | **mirror** (3 advisors) | **no floor** | 0.0043 — refused | 0.1945 ± 0.0261 | — |
+
+  Row 1 reproduces `tools/floor.ts` exactly, same 7,154 positions: the harness
+  is the same measurement.
+
+  **The floor moves 0.0000 → 0.1667**, every adjacent pair separating by
+  10–40σ. It cannot be quoted without naming the opponents.
+
+  **The headroom barely moves** — 0.0210 to 0.0407, and no pair separates at
+  95%. That does not establish it is constant; it establishes that its movement
+  is below what this n can resolve while the floor beneath it swings 17 points.
+
+  **No floor for the mirror field, and the refusal is the good part.** Its
+  reliability of 0.0043 sits *inside* the 0.005 gate, so the agent built a null
+  distribution: ten independent runs of the known-good tuned oracle at the
+  mirror's configuration fail the gate two times in ten. The second estimator
+  settled it — `|direct − scored|` is 0.0361 against a worst null of 0.0116,
+  and 1.7× its own band. The two estimators disagree, so no floor was reported.
+  Its first mirror run was discarded as uninformative rather than published.
+
+  Worlds are not the cause: dropping 200 → 40 moves tuned reliability
+  0.0016 → 0.0015. Untested hypothesis: the sampler models the exchange and the
+  public failures but nothing about what a seat's *choices* imply about its
+  hand, and a searching opponent's choices carry far more of that. Predicts the
+  gap tracks opponent search strength.
+
+  **The finding that shapes H8: the advisor's error changes sign with the
+  field.** Hard fields, says 90% → 81% happens. Easy fields, says 89% → 100%,
+  92% → 98%. A calibration map fitted on one field would damage the others —
+  which is an argument against a fitted correction and *for* fixing beliefs.
+  Against `cheapest` the floor is exactly zero, so 100% of the advisor's 0.0348
+  is miscalibration: it states 75–89% about a certainty.
+
+  Cost, measured: one mirror oracle world 0.44 s against 0.058 ms heuristic —
+  7,600×. 360 mirror matches at 40 worlds is 18.2 CPU-hours. Shard on a fixed
+  count, never a wall clock: stopping on time over-samples fast shards, which
+  are short matches, which is a biased set of outcomes.
