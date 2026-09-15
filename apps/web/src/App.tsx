@@ -20,9 +20,18 @@ export function App() {
   const [advisorOn, setAdvisorOn] = useState(
     () => window.localStorage.getItem('cucumber.advisor') === 'on',
   )
-  const [autoplayOn, setAutoplayOn] = useState(
-    () => window.localStorage.getItem('cucumber.autoplay') === 'on',
-  )
+  /*
+   * Autoplay deliberately does NOT persist.
+   *
+   * It used to be remembered like the other toggles, and twice that cost
+   * hours: a tab left open with it on plays your seat silently, and because
+   * the setting survives reloads, closing and reopening the game does not
+   * clear it. You end up watching a hand play itself with no visible cause.
+   * Nothing else on this screen acts on your behalf, so nothing else has this
+   * failure mode. It starts off every session and you turn it on when you want
+   * it, which costs one click and removes the whole class of problem.
+   */
+  const [autoplayOn, setAutoplayOn] = useState(false)
   // Blind: the advisor still thinks, and is still recorded, but says nothing
   // until the match is over. Playing with the answer on screen is a different
   // game from playing and finding out afterwards how close you came.
@@ -132,6 +141,8 @@ export function App() {
 
   const toggleAutoplay = (on: boolean) => {
     setAutoplayOn(on)
+    // Still broadcast to other tabs, so turning it off in one turns it off
+    // everywhere — it is just never read back at startup.
     window.localStorage.setItem('cucumber.autoplay', on ? 'on' : 'off')
   }
 

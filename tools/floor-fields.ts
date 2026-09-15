@@ -222,9 +222,9 @@ function searchOptions() {
     // The advisor's beliefs about the unseen cards. Omitted, its worlds are
     // uniform over the pool, which is right only if nobody exchanged — and
     // then this harness measures a different advisor from the one that ships.
-    ...(process.env.NO_EXCHANGE_PRIOR === '1'
-      ? {}
-      : { exchanged: [3, 3, 3] as const, discards: weightedDiscards(TUNED) }),
+    ...(process.env.EXCHANGE_PRIOR === '1'
+      ? { exchanged: [3, 3, 3] as const, discards: weightedDiscards(TUNED) }
+      : {}),
   }
 }
 

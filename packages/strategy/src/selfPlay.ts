@@ -109,11 +109,19 @@ export function searchPlayer(
       // What the opponents exchanged, and the policy they threw cards with.
       // Both are this player's own, so nothing is assumed about them that is
       // not already true of the table it is sitting at.
-      // A/B switch so the prior can be measured against itself at identical
-      // seeds rather than across runs. Default on.
-      ...(process.env.NO_EXCHANGE_PRIOR === '1'
-        ? {}
-        : { exchanged: [exchange, exchange, exchange] as const, discards: weightedDiscards(weights) }),
+      /*
+       * Off unless asked for, and that is the finding rather than caution.
+       *
+       * The prior is worth 5 points of loss rate when its model of the
+       * opponents' discarding is right (22.15% -> 17.08%, paired, 4,000
+       * matches) and costs 2.4 when it is wrong (3.53% -> 5.93% against the
+       * dumper archetype). It models the tuned discard policy, which is true
+       * of self-play and false of a human — the case the app exists for. On by
+       * default would optimise the benchmark at the expense of the players.
+       */
+      ...(process.env.EXCHANGE_PRIOR === '1'
+        ? { exchanged: [exchange, exchange, exchange] as const, discards: weightedDiscards(weights) }
+        : {}),
       ...(onEstimate ? { onEstimate } : {}),
     }),
     exchangeSize: () => exchange,

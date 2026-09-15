@@ -90,9 +90,9 @@ const watching: Policy = (view, candidates) => {
     const advisor = searchActions(info, trick, xorshift(4242), {
       worlds: SEARCH_WORLDS,
       weights: TUNED,
-      ...(process.env.NO_EXCHANGE_PRIOR === '1'
-        ? {}
-        : { exchanged: [3, 3, 3] as const, discards: weightedDiscards(TUNED) }),
+      ...(process.env.EXCHANGE_PRIOR === '1'
+        ? { exchanged: [3, 3, 3] as const, discards: weightedDiscards(TUNED) }
+        : {}),
     }).best
     // Everyone here exchanges three, and it is public. Without this the
     // sampled worlds are uniform over unseen cards, which flatters the seat by
