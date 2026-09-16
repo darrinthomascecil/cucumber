@@ -75,7 +75,7 @@ the only honest unit — are computable.
 
 ## The plan
 
-- [~] **C1 — Score both forecasters in one harness, on identical positions.**
+- [x] **C1 — Score both forecasters in one harness, on identical positions.**
       Add `packages/strategy`'s `advise()` to `tools/advisor-benchmark.ts` as a
       second model. Both see the same `PlayerView` at the same decision; both
       emit P(this seat loses the match) for the observer.
@@ -83,7 +83,7 @@ the only honest unit — are computable.
       same matches, and a test pins the strategy adapter's output against
       `exactFinalSurvival` where both apply.
 
-- [ ] **C2 — Measure coverage before quality.**
+- [x] **C2 — Measure coverage before quality.**
       The belief model refuses positions lacking `historyComplete` or
       `exchangeCounts`, and refuses phases outside TRICK_PLAY/EXCHANGE. If it
       declines the *hard* positions, comparing on the intersection flatters it.
@@ -91,23 +91,23 @@ the only honest unit — are computable.
       positions are characterised by hand size and score pressure, and the
       comparison is restricted to positions **both** answered.
 
-- [ ] **C3 — Equalise on time, not on parameters.**
+- [x] **C3 — Equalise on time, not on parameters.**
       160 worlds against 128 simulations compares two arbitrary constants.
       *Done when:* per-decision wall-clock is measured for both, the comparison
       runs at a matched time budget, and the parameters that produced it are
       recorded.
 
-- [ ] **C4 — Compare, with bands over matches.**
+- [x] **C4 — Compare, with bands over matches.**
       *Done when:* Brier, reliability and resolution are reported for both over
       enough matches to resolve the difference that would change the decision
       (see Open questions), with 95% bands taken over matches, not
       observations.
 
-- [ ] **C5 — Decide, and write down what would overturn it.**
+- [x] **C5 — Decide, and write down what would overturn it.**
       *Done when:* `ADVISOR.md` carries the comparison, the decision, the
       asymmetry above, and the evidence that would reverse it.
 
-- [ ] **C6 — Retire what lost.** *(conditional on C5 — may be nothing to do)*
+- [x] **C6 — Retire what lost.** *(conditional on C5 — may be nothing to do)*
       *Done when:* either the loser goes with its tests, or `ADVISOR.md` says
       why both are kept.
 
@@ -144,3 +144,40 @@ Newest last. Each entry records what was measured, not what was written.
   the adapter there makes a package cycle — one that resolves inside this
   workspace and breaks the moment either package is built alone. It lives in
   `tools/`, which may depend on both.
+
+- **C2 — no selection effect.** 916 observer decisions across all phases: the
+  belief model answers 92.1%, the strategy advisor 84.5%, and **zero** positions
+  are answered by the strategy advisor but refused by the belief model. Every
+  refusal is "no hidden-hand forecast in this phase" (lobby, final reveal), and
+  both decline those. The intersection is unbiased, so C4 could proceed on it.
+  A first version asked only inside trick play and reported a tidy 100%/100% —
+  a scope limit dressed as a result.
+
+- **C3 — a matched budget means pushing the cheap side up.** Per decision:
+  strategy 1.9 / 3.3 / 6.3 / 12.3 ms at 40 / 80 / 160 / 320 worlds; belief
+  126.6 / 260.0 / 511.8 / 1021.4 ms at 24/32 through 192/256. **The belief
+  model's cheapest setting costs more than the strategy advisor's dearest.**
+  Matched pair: strategy 2,560 worlds (96.3 ms) against belief 24/32
+  (126.6 ms), 24% apart. At shipping defaults the gap is 82×.
+
+- **C4 — a tie at face value, and not a tie underneath.** 1,000 matches,
+  18,244 positions. Strategy 0.1642 ± 0.0086, belief 0.1591 ± 0.0147, paired
+  difference 0.0080 at 1.9σ — not established, and below the 0.02 that would
+  justify migrating anyway. But resolution 0.0583 against 0.0917 and
+  reliability 0.0005 against 0.0373: the belief model carries 57% more
+  information and loses nearly all of it to dishonesty.
+
+- **C5 — decided: keep both, ship the strategy advisor, run the neutral test.**
+  Recalibration, fitted on 500 matches and scored on a different 500, takes the
+  belief model from 0.1567 to **0.1116** and leaves the strategy advisor at
+  0.1604 unchanged — it had nothing to gain. That is 0.049 clear, well past the
+  migration threshold. But this is the belief model's home field and the
+  reading was pre-registered: its win here is confounded. The overturning
+  experiment is the same comparison where neither models the opponents.
+  Written into ADVISOR.md.
+
+- **C6 — both kept, deliberately.** The loser is not obvious enough to retire:
+  one is honest and cheap, the other is informative and expensive, and which
+  matters depends on a test not yet run. The cost of carrying both is that
+  every engine change must keep two forecasters alive — `pnpm test` now runs
+  both suites, so that cost is at least visible.

@@ -261,6 +261,66 @@ node --experimental-strip-types tools/exchange-control.ts 1500 150
 node --experimental-strip-types tools/floor.ts 400 200
 ```
 
+## Two forecasters, compared
+
+The repository carries two. `packages/strategy` samples worlds and plays them
+out; `packages/game-engine/src/advisor` keeps a particle belief with an
+opponent-policy prior. Full design and pre-registered reading in
+`ADVISOR-CHOICE.md`; this is the result.
+
+**1,000 matches, 18,244 positions both answered, matched on measured cost** —
+the belief model at its cheapest setting (126.6 ms/decision) against the
+strategy advisor at 2,560 worlds (96.3 ms), because at its shipping 160 worlds
+it costs 6.3 ms and the comparison would have handed away a 16× compute
+advantage.
+
+| | Brier | uncertainty | − resolution | + reliability |
+|---|---|---|---|---|
+| strategy advisor | 0.1642 ± 0.0086 | 0.2250 | 0.0583 | **0.0005** |
+| belief model | 0.1591 ± 0.0147 | 0.2250 | **0.0917** | 0.0373 |
+
+Paired difference 0.0080, se 0.0041, **1.9σ — not established.** At face value
+it is a tie.
+
+**The decomposition is the finding.** The belief model extracts **57% more
+resolution** — genuinely more information about which positions are dangerous —
+and gives nearly all of it back in miscalibration. The strategy advisor carries
+less information and states it almost perfectly honestly: reliability 0.0005,
+which is as calibrated as anything in this project has measured.
+
+Resolution cannot be conjured; reliability can be removed, because a monotone
+recalibration reorders nothing. Fitting on 500 matches and scoring on a
+different 500:
+
+| | raw | recalibrated |
+|---|---|---|
+| strategy advisor | 0.1604 | 0.1604 (unchanged) |
+| belief model | 0.1567 | **0.1116** |
+
+**A recalibrated belief model is far better — 0.049 clear, well past the 0.02
+that would justify a migration.** And the strategy advisor gains nothing from
+calibration because it has nothing to gain: it was already honest.
+
+### The decision: keep both, ship neither differently, and run the neutral test
+
+**No migration yet**, and the reason was written down before the run rather
+than after. The benchmark's opponents are drawn from `POLICY_NAMES` — the same
+policy set the belief model's prior is over — so its model of the opposition is
+correct *by construction* there, exactly as the strategy advisor's is correct
+in the tuned-heuristic field. `ADVISOR-CHOICE.md` pre-committed to the reading:
+the strategy advisor winning on this ground would have been decisive; the
+belief model winning is confounded.
+
+**What would overturn this:** the same comparison in a field neither models
+correctly. If the recalibrated belief model keeps a 0.02+ advantage there, it
+should replace the shipping advisor.
+
+**What ships meanwhile:** `packages/strategy`, on two grounds that do not
+depend on the confounded result. It costs **6.3 ms against 514 ms** per
+decision at shipping defaults — 82×, and the advisor runs in a browser while
+someone waits. And it needs no fitted calibration layer to be honest, so there
+is no training set to maintain, drift from, or ship wrong.
+
 ## Things that turned out not to help
 
 | attempt | result |
