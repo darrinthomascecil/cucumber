@@ -1,3 +1,5 @@
+import { cardLabel } from '@cucumber/game-engine'
+
 /**
  * Answering questions about a finished match, in plain English.
  *
@@ -38,8 +40,10 @@ function table(decisions: ReviewDecision[]): string {
   if (decisions.length === 0) return '(no decisions were scored in this match)'
   return decisions
     .map((d, i) => {
-      const played = d.played.join('+') || '—'
-      const best = d.best?.join('+') ?? '—'
+      // Card ids in, card names out. Handing the model "JC" gets "JC" back,
+      // and nobody reads their own game in database identifiers.
+      const played = d.played.map(cardLabel).join(' + ') || '—'
+      const best = d.best?.map(cardLabel).join(' + ') ?? '—'
       const verdict = d.withinNoise
         ? 'no real difference'
         : `gave up ${d.cost.toFixed(1)} points`
@@ -62,13 +66,69 @@ RULES, in order of importance:
 3. "Points" are percentage points of win probability given up by not playing the
    best move. "Gave up 23 points" means the chance of surviving the match fell
    by 23 percentage points. It is NOT a 23% chance of anything.
-4. A decision marked "no real difference" is not a mistake. The search cannot
-   tell those plays apart, so do not call them errors.
-5. Answer in two or three sentences. Name the specific hand and cards. No
-   preamble, no encouragement, no bullet lists.`
+4. A decision marked "no real difference" is not a mistake, an opportunity, a
+   missed chance, or something that "might have been better". The search
+   cannot tell those two plays apart, so there is nothing to improve there.
+   Never list one as a suggestion. If every scored decision was either best or
+   within noise, say the player played it clean and stop — do not then offer
+   improvements, which contradicts it.
+5. Write cards exactly as they appear above: J♣, 10♦, Joker. Never "JC".
+6. Be specific or be silent. Every sentence must carry a hand number, a card,
+   or a number of points. "You played well", "good choices", "solid game" and
+   "nothing to improve" carry none of those and are filler.
+7. Say each thing once. Do not restate a verdict in different words.
+   "Played it clean", "best decision every time" and "nothing to improve" are
+   the same sentence three times.
+8. When nothing cost anything, there is still something specific to report:
+   how many decisions were scored, and the closest call — its hand, its cards
+   and its points — noting the search could not separate them. That is a
+   finding. "You played well" is not.
+9. No congratulation, no exclamation marks, no cheerleading. The player asked
+   what happened, not to be told they did well. A flat report of what the
+   record shows is the whole job.
+10. Two or three sentences. No preamble, no bullet lists.`
 
-export async function askAboutReview(input: AskRequest): Promise<string> {
+export interface Answer {
+  /** Computed here, exact, and shown to the player verbatim. */
+  headline: string
+  /** The model's prose. Context only — it may garble any figure in it. */
+  answer: string
+}
+
+/*
+ * The split exists because a small local model cannot be trusted to restate a
+ * number. Handed the ranking precomputed and told not to re-rank, it still
+ * named the second-closest call and, in another run, wrote "played 3 instead
+ * of 4" for 3♦ and 4♠. So the figures reach the player from the code that
+ * owns them, and the model only adds sentences around them. Nothing it
+ * garbles can change what the player is told.
+ */
+export async function askAboutReview(input: AskRequest): Promise<Answer> {
+  /*
+   * The ranking is computed here, not asked for.
+   *
+   * Given the table and told to find the closest call, an 8B model picked the
+   * second-closest and dropped the cards. Sorting is not what it is for. It
+   * phrases; the arithmetic is done where arithmetic belongs, and then there
+   * is nothing left for it to get wrong.
+   */
+  const scored = input.decisions.filter((d) => d.best !== null)
+  const costly = scored.filter((d) => !d.withinNoise).sort((a, b) => b.cost - a.cost)
+  const closest = scored.filter((d) => d.withinNoise).sort((a, b) => b.cost - a.cost)
+  const name = (d: ReviewDecision) =>
+    `hand ${d.handNumber}, played ${d.played.map(cardLabel).join(' + ')} instead of ${(d.best ?? []).map(cardLabel).join(' + ')}, ${d.cost.toFixed(1)} points`
+
+  const headline = costly.length > 0
+    ? `Costliest decision: ${name(costly[0]!)}.${costly[1] ? ` Next: ${name(costly[1]!)}.` : ''}`
+    : closest.length > 0
+      ? `Nothing cost anything. ${scored.length} decisions scored. Closest call: ${name(closest[0]!)} — inside the noise, so the search could not separate the two plays.`
+      : `Nothing was scored in this match.`
+
   const prompt = `Review of the match just played.
+
+ALREADY WORKED OUT FOR YOU — use these, do not re-rank anything:
+${headline}
+
 
 Decisions where a better play existed, or that were close enough not to matter:
 ${table(input.decisions)}
@@ -98,5 +158,5 @@ Question: ${input.question}`
   const body = (await response.json()) as { message?: { content?: string } }
   const answer = body.message?.content?.trim()
   if (!answer) throw new Error('the local model returned nothing')
-  return answer
+  return { headline, answer }
 }

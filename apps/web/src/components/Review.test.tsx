@@ -37,8 +37,10 @@ describe('the review screen', () => {
     ])
 
     expect(html).toContain('hand 3')
-    expect(html).toContain('3D')
-    expect(html).toContain('4S')
+    // Card faces, not database ids: nobody reads their own game as "3D".
+    expect(html).toContain('3♦')
+    expect(html).toContain('4♠')
+    expect(html).not.toContain('>3D<')
     expect(html).toContain('−23 pts')
     expect(html).toContain('50%')
   })

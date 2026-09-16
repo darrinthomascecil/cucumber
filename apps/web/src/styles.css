@@ -1598,3 +1598,18 @@ button.card {
 
 .review-answer.thinking, .review-answer.failed { color: var(--ink-dim); }
 .review-answer.failed { border-left-color: var(--warn); }
+
+/* The computed half of an answer. It sits above the model's prose and is the
+   part that is true by construction: the figures come from the recorded
+   evaluations, not from a language model restating them. */
+.review-headline {
+  margin: 0;
+  font-size: .88rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.22);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+  padding: .6rem .75rem;
+  font-variant-numeric: tabular-nums;
+}

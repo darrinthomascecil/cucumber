@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { cardLabel } from '@cucumber/game-engine'
 import type { Judged, ReviewSummary } from '@cucumber/strategy'
 
 interface Props {
@@ -103,6 +104,8 @@ export function Review({ summary, onDismiss }: Props) {
 function Ask({ summary }: { summary: ReviewSummary }) {
   const [question, setQuestion] = useState('')
   const [answer, setAnswer] = useState<string | null>(null)
+  // Computed server-side and shown verbatim; the prose below it is commentary.
+  const [headline, setHeadline] = useState<string | null>(null)
   const [state, setState] = useState<'idle' | 'asking' | 'failed'>('idle')
 
   const ask = async (event: React.FormEvent) => {
@@ -111,6 +114,7 @@ function Ask({ summary }: { summary: ReviewSummary }) {
     if (!asked || state === 'asking') return
     setState('asking')
     setAnswer(null)
+    setHeadline(null)
     try {
       const response = await fetch('/api/review/ask', {
         method: 'POST',
@@ -131,13 +135,14 @@ function Ask({ summary }: { summary: ReviewSummary }) {
             })),
         }),
       })
-      const body = (await response.json()) as { answer?: string; error?: string }
+      const body = (await response.json()) as { answer?: string; headline?: string; error?: string }
       if (!response.ok) {
         setState('failed')
         setAnswer(body.error ?? 'The local model did not answer.')
         return
       }
       setState('idle')
+      setHeadline(body.headline ?? null)
       setAnswer(body.answer ?? '')
     } catch {
       setState('failed')
@@ -147,6 +152,7 @@ function Ask({ summary }: { summary: ReviewSummary }) {
 
   return (
     <>
+      {headline ? <p className="review-headline">{headline}</p> : null}
       {answer !== null || state === 'asking' ? (
         <p className={`review-answer${state === 'asking' ? ' thinking' : state === 'failed' ? ' failed' : ''}`}>
           {state === 'asking' ? 'Thinking…' : answer}
@@ -170,8 +176,9 @@ function Ask({ summary }: { summary: ReviewSummary }) {
 }
 
 function Moment({ moment }: { moment: Judged }) {
-  const played = moment.played.join(' ')
-  const best = moment.best?.cards.join(' ') ?? '—'
+  // 'JC' is an id, not a card. People read J♣.
+  const played = moment.played.map(cardLabel).join(' ')
+  const best = moment.best?.cards.map(cardLabel).join(' ') ?? '—'
   return (
     <div className="review-row costly">
       <span className="review-hand">hand {moment.handNumber}</span>

@@ -127,11 +127,56 @@ async function signIn(name: string): Promise<string> {
   return session
 }
 
-function play(name: string, cookie: string, index: number): void {
+/**
+ * Keep a seat filled for as long as this process runs.
+ *
+ * The first version opened one socket per player and, on close, logged
+ * "<name> left" and stopped. That is fine until anything restarts the server —
+ * and in development `--watch` restarts it on every edit to apps/server, which
+ * drops every socket. The table was then left with a human and two empty
+ * chairs, showing ONLINE because the server's own connection state had not
+ * caught up, and the only symptom was that nobody moved. It happened three
+ * times before it was worth fixing.
+ *
+ * So: reconnect, and sign in again while doing it. A stale cookie is the other
+ * way this dies — rotating SESSION_SECRET invalidates every session — and
+ * re-signing costs one row update and one request, so there is no reason to
+ * try the old cookie first and guess at which failure it was.
+ */
+function keepSeated(name: string, index: number): void {
+  let delay = 500
+  const reconnect = (why: string) => {
+    console.log(`${name} ${why}; reconnecting in ${delay}ms`)
+    setTimeout(() => {
+      void signIn(name)
+        .then((session) => {
+          delay = 500
+          play(name, session, index)
+        })
+        .catch((error) => {
+          // Cap the backoff: the server may be mid-restart, and hammering it
+          // makes that take longer.
+          delay = Math.min(delay * 2, 5000)
+          reconnect(`could not sign in (${(error as Error).message.slice(0, 60)})`)
+        })
+    }, delay)
+  }
+  void signIn(name)
+    .then((session) => play(name, session, index, reconnect))
+    .catch((error) => reconnect(`could not sign in (${(error as Error).message.slice(0, 60)})`))
+}
+
+function play(
+  name: string,
+  cookie: string,
+  index: number,
+  onLost: (why: string) => void = () => {},
+): void {
   const socket = new WebSocket(`${origin.replace('http', 'ws')}/ws`, { headers: { cookie } })
   // Act at most once per version, and stagger the seats, so two fillers
   // reacting to the same broadcast do not race each other into conflicts.
   let actedOn = -1
+  let lastActed = Date.now()
   // Its own discards: cards it saw and parted with, which it may remember.
   let memory: SeatMemory = { discarded: [] }
   let handNumber = 0
@@ -163,13 +208,41 @@ function play(name: string, cookie: string, index: number): void {
     if (!command) return
     if (command.type === 'SUBMIT_DISCARDS') memory.discarded.push(...command.cards)
     actedOn = view.version
+    lastActed = Date.now()
     // A short pause so a human watching can follow what happened.
     setTimeout(() => socket.send(JSON.stringify(command)), 600 + index * 250)
   })
-  socket.on('close', () => console.log(`${name} left`))
+  socket.on('error', () => {
+    // The close handler fires after this; let it do the reconnecting so the
+    // seat is never refilled twice.
+  })
+
+  socket.on('close', () => onLost('left the table'))
+
+  /*
+   * A socket can stay open while the game waits forever on this seat: a
+   * command refused for a reason the guard above does not clear, or a
+   * broadcast missed during a reconnect, leaves `actedOn` pinned at a version
+   * that will never arrive again. Ask for the state afresh if this seat has
+   * been the one holding things up for a while.
+   */
+  const watchdog = setInterval(() => {
+    if (socket.readyState !== socket.OPEN) return
+    if (Date.now() - lastActed < 20_000) return
+    lastActed = Date.now()
+    actedOn = -1
+    socket.send(JSON.stringify({ type: 'RESYNC' }))
+  }, 10_000)
+  socket.on('close', () => clearInterval(watchdog))
 }
 
-const sessions = await Promise.all(names.map(signIn))
-await disconnect()
-names.forEach((name, index) => play(name, sessions[index] as string, index))
-console.log(`${names.join(' and ')} are waiting at the table. Ctrl-C to stop.`)
+// The database stays open: reconnecting mints a fresh invitation, and that
+// needs it. It is closed when the process is.
+names.forEach((name, index) => keepSeated(name, index))
+console.log(`${names.join(' and ')} are taking their seats. They reconnect on their own; Ctrl-C to stop.`)
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(signal, () => {
+    void disconnect().finally(() => process.exit(0))
+  })
+}

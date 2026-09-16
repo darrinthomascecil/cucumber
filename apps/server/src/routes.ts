@@ -139,7 +139,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'No review was attached to the question.' })
     }
     try {
-      return { answer: await askAboutReview(body) }
+      return await askAboutReview(body)
     } catch (error) {
       // A missing local model is the ordinary case here, not an emergency.
       app.log.warn({ err: error }, 'review chat failed')
