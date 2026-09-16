@@ -35,7 +35,9 @@ function randomSingleChance(hand: CardId[], card: CardId, target: CardId | undef
 }
 
 function reference(view: PlayerView, cards: CardId[]) {
-  const tricks = [...view.completedTricks, view.trick!]
+  // The fixture is an exact-enumeration position, which the belief model only
+  // accepts when history is complete — so the field is present here.
+  const tricks = [...view.completedTricks!, view.trick!]
   const plays = tricks.flatMap((trick) => trick.plays)
   const known = new Set([...view.you.hand, ...plays.flatMap((play) => play.cards)])
   const unseen = buildDeck().filter((card) => !known.has(card))

@@ -165,14 +165,19 @@ export interface PlayerView {
   /** Each completed trick this hand, in order. Two branches added public
    *  history independently — this is the union, deduplicated: `played` is the
    *  flat card list the strategy package reads, `completedTricks` the
-   *  structured form the advisor's belief model walks. */
-  completedTricks: TrickState[]
+   *  structured form the advisor's belief model walks.
+   *
+   *  Optional because a view rebuilt from a snapshot taken before history was
+   *  recorded genuinely has none, and `historyComplete` exists to say so —
+   *  which would be redundant if this were always present. Consumers that
+   *  need it must check that flag first, as the belief model does. */
+  completedTricks?: TrickState[]
   /** How many cards each seat exchanged this hand, or null before the
    *  exchange. Public — everyone watched the draws. */
   exchangeCounts: Record<Seat, number> | null
   /** False when the view was rebuilt from a snapshot that predates full
    *  history, so a consumer needing complete observations can refuse. */
-  historyComplete: boolean
+  historyComplete?: boolean
   handResult: HandResult | null
   losers: Seat[]
   /** Whose action the match is waiting on, if anyone's. */

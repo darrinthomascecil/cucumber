@@ -23,11 +23,11 @@ test('public plays and outcomes survive snapshots without leaking private cards'
   state.stock = ['AS']
   const view = viewFor(structuredClone(state), 1)
   assert.deepEqual(view.played, ['2C', '2D', '2H', '3H', '3C', '3D'])
-  assert.equal(view.completedTricks.length, 2)
+  assert.equal(view.completedTricks!.length, 2)
   assert.equal(view.historyComplete, true)
   for (const card of ['AS', '4D', '5D', '4H', '5H']) assert(!stringValues(view).includes(card))
   view.played.pop()
-  view.completedTricks[0]!.plays[0]!.cards.pop()
+  view.completedTricks![0]!.plays[0]!.cards.pop()
   assert.equal(state.played.length, 6)
   assert.equal(state.completedTricks![0]!.plays[0]!.cards.length, 1)
 })

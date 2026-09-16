@@ -40,7 +40,7 @@ interface Observation {
 }
 
 function observations(view: PlayerView): Observation[] {
-  const tricks = [...view.completedTricks, ...(view.trick ? [view.trick] : [])]
+  const tricks = [...(view.completedTricks ?? []), ...(view.trick ? [view.trick] : [])]
   return tricks.flatMap((trick) => {
     let target: CardId[] = []
     return trick.plays.map((play, index) => {
@@ -259,7 +259,8 @@ function evidence(
 }
 
 function buildBelief(view: PlayerView, options: BeliefOptions, enumerateFinal: boolean): Belief {
-  if (!view.historyComplete || !view.exchangeCounts) throw new Error('This saved hand lacks complete observation history; a new hand is required for the advisor')
+  if (!view.historyComplete || !view.exchangeCounts || !view.completedTricks) throw new Error('This saved hand lacks complete observation history; a new hand is required for the advisor')
+  const completedTricks = view.completedTricks
   if (!['TRICK_PLAY', 'EXCHANGE', 'EXCHANGE_SIZE_SELECTION'].includes(view.phase)) throw new Error('No hidden-hand forecast is available in this phase')
   if (enumerateFinal && (view.phase !== 'TRICK_PLAY' || view.trick?.plays.length !== 2 || view.actionSeat !== view.you.seat
     || view.players.some((player) => player.seat !== view.you.seat && player.cardCount !== 1)
@@ -281,7 +282,7 @@ function buildBelief(view: PlayerView, options: BeliefOptions, enumerateFinal: b
   const known = [...view.you.hand, ...view.you.discards, ...publicCards]
   const knownSet = new Set(known)
   if (knownSet.size !== known.length || known.some((card) => !buildDeck().includes(card))) throw new Error('Invalid or duplicated known card')
-  if (view.completedTricks.flatMap(trickCards).join(',') !== view.played.join(',')) throw new Error('Completed trick history is incomplete')
+  if (completedTricks.flatMap(trickCards).join(',') !== view.played.join(',')) throw new Error('Completed trick history is incomplete')
   if (view.phase === 'TRICK_PLAY') {
     for (const player of view.players) {
       const currentCount = view.trick?.plays.find((play) => play.seat === player.seat)?.cards.length ?? 0
