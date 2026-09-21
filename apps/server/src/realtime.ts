@@ -1,4 +1,3 @@
-import type { WebSocket } from 'ws'
 import { IllegalMoveError, seatOfUser, viewFor } from '@cucumber/game-engine'
 import type { ClientCommand, MatchState, ServerMessage } from '@cucumber/shared'
 import { clientMessageSchema } from './commandSchema.ts'
@@ -11,15 +10,29 @@ import {
   roomFor,
 } from './matchService.ts'
 
+/**
+ * What the match needs from a connection: enough to hand a client its view and
+ * hear its commands. A `ws` socket satisfies it; so does an in-process one,
+ * which is how the computer players attach without any of the rules path
+ * knowing they are not browsers.
+ */
+export interface ClientSocket {
+  readonly OPEN: number
+  readyState: number
+  send(data: string): void
+  on(event: 'message', listener: (raw: Buffer) => void): unknown
+  on(event: 'close', listener: () => void): unknown
+}
+
 interface Client {
-  socket: WebSocket
+  socket: ClientSocket
   userId: string
   matchId: string
 }
 
 const clients = new Set<Client>()
 
-function send(socket: WebSocket, message: ServerMessage): void {
+function send(socket: ClientSocket, message: ServerMessage): void {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message))
 }
 
@@ -50,7 +63,7 @@ export async function pushCurrentState(matchId: string): Promise<void> {
 }
 
 export async function registerClient(
-  socket: WebSocket,
+  socket: ClientSocket,
   userId: string,
   matchId: string,
 ): Promise<void> {

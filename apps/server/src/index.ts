@@ -6,6 +6,7 @@ import websocket from '@fastify/websocket'
 import Fastify from 'fastify'
 import { db, disconnect } from '@cucumber/database'
 import { createInvite, currentUser } from './auth.ts'
+import { startComputerPlayers } from './computerPlayers.ts'
 import { env } from './env.ts'
 import { joinRoom } from './matchService.ts'
 import { registerRoutes } from './routes.ts'
@@ -59,9 +60,18 @@ async function main(): Promise<void> {
   }
 
   await bootstrapAdmin(app.log)
+  const stopComputerPlayers =
+    env.computerPlayers.length > 0
+      ? await startComputerPlayers(
+          env.computerPlayers,
+          { worlds: env.computerWorlds, delayMs: env.computerDelayMs, pollMs: env.computerPollMs },
+          app.log,
+        )
+      : () => {}
   await app.listen({ port: env.port, host: env.host })
 
   const shutdown = async () => {
+    stopComputerPlayers()
     await app.close()
     await disconnect()
     process.exit(0)

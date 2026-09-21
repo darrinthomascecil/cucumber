@@ -11,8 +11,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import WebSocket from 'ws'
 import { db, disconnect } from '@cucumber/database'
-import { sortByTrickStrength } from '@cucumber/game-engine'
-import { advise, type SeatMemory } from '@cucumber/strategy'
+import { decideForSeat, type SeatMemory } from '@cucumber/strategy'
 import type { ClientCommand, PlayerView, ServerMessage } from '@cucumber/shared'
 
 const origin = process.env.LOCAL_ORIGIN ?? 'http://127.0.0.1:8080'
@@ -22,82 +21,18 @@ if (names.length === 0) {
   process.exit(1)
 }
 
-/**
- * These players think with the same brain as the in-game advisor: the tuned
- * strategy, searched over a few hundred imagined deals, from nothing but the
- * sanitised view the server sends them.
- *
- * An earlier version of this file led its lowest card every trick, which is
- * how you arrive at the reveal holding your highest — and it was doing that
- * long after there was a real strategy sitting in the repository unused.
- */
 const WORLDS = Number(process.env.LOCAL_WORLDS ?? 160)
 
+/** The same brain as the server's computer players, stamped with an envelope. */
 function decide(view: PlayerView, memory: SeatMemory): ClientCommand | null {
-  const hand = view.you.hand
-  /*
-   * A discard that was refused and re-sent would otherwise be remembered
-   * twice, and a card still in hand was plainly never discarded at all. Both
-   * make the advisor believe more cards exist than the deck holds.
-   */
-  const seen: SeatMemory = {
-    discarded: [...new Set(memory.discarded)].filter((card) => !hand.includes(card)),
-  }
-  const envelope = {
+  const decision = decideForSeat(view, memory, { worlds: WORLDS })
+  if (!decision) return null
+  return {
+    ...decision,
     matchId: view.matchId,
     expectedVersion: view.version,
     actionId: randomBytes(8).toString('hex'),
-  }
-
-  switch (view.prompt.kind) {
-    case 'READY':
-      return view.you.ready ? null : { type: 'READY', ready: true, ...envelope }
-
-    case 'SELECT_EXCHANGE_SIZE':
-      // Never searched: the exchange size is the one decision self-play has
-      // not been asked about. Three is the figure everything was tuned under.
-      return { type: 'SELECT_EXCHANGE_SIZE', size: 3, ...envelope }
-
-    case 'SELECT_EXCHANGE':
-      return { type: 'SELECT_EXCHANGE', size: view.prompt.options?.[1] ?? 0, ...envelope }
-
-    case 'SUBMIT_DISCARDS': {
-      const required = view.prompt.requiredCards ?? 0
-      const advice = advise(view, seen, { worlds: WORLDS })
-      const chosen = advice.suggestions[0]?.cards
-      return {
-        type: 'SUBMIT_DISCARDS',
-        // The advisor is approximate here, so fall back on the worst cards.
-        cards: chosen?.length === required ? chosen : sortByTrickStrength(hand).slice(0, required),
-        ...envelope,
-      }
-    }
-
-    case 'LEAD':
-    case 'FOLLOW':
-    case 'FORCED_LOW': {
-      const advice = advise(view, seen, { worlds: WORLDS })
-      const chosen = advice.suggestions[0]?.cards
-      if (chosen && chosen.length > 0) {
-        return { type: 'PLAY_CARDS', cards: chosen, ...envelope }
-      }
-      // Only reachable if the search returned nothing; play something legal.
-      const required = view.prompt.requiredCards ?? 1
-      const allowed = view.prompt.selectableCards ?? hand
-      return {
-        type: 'PLAY_CARDS',
-        cards: sortByTrickStrength(allowed).slice(0, required),
-        ...envelope,
-      }
-    }
-
-    case 'NEXT_MATCH':
-      // Starting a fresh match is a human decision, not a filler's.
-      return null
-
-    default:
-      return null
-  }
+  } as ClientCommand
 }
 
 async function signIn(name: string): Promise<string> {

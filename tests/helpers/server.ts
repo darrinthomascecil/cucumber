@@ -74,7 +74,7 @@ export async function seedInvitee(
 export class ServerHandle {
   private constructor(private child: ChildProcess) {}
 
-  static async start(): Promise<ServerHandle> {
+  static async start(extraEnv: Record<string, string> = {}): Promise<ServerHandle> {
     const child = spawn(
       process.execPath,
       ['--experimental-strip-types', 'apps/server/src/index.ts'],
@@ -89,6 +89,7 @@ export class ServerHandle {
           ADMIN_EMAIL: '',
           LOG_LEVEL: 'error',
           NODE_ENV: 'test',
+          ...extraEnv,
         },
         stdio: 'pipe',
       },

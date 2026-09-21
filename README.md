@@ -27,45 +27,30 @@ On first boot the server prints a one-time invitation link for `ADMIN_EMAIL`.
 Open it to sign in. From **Invitations** you can create a link for each of the
 other two players; each link works once.
 
-### Playing alone while you build
+### Playing alone
 
-Cucumber needs three people. To fill the other two seats:
+Cucumber needs three at the table. The server can fill the other two seats
+itself:
+
+```bash
+COMPUTER_PLAYERS=Bob,Charlie pnpm dev:server
+```
+
+Bob and Charlie are ordinary players as far as the match is concerned: they
+receive the same sanitised view a browser receives, their moves pass the same
+version guard and action ledger, and they think with the same searched
+strategy as the in-game advisor. They are re-seated when the server restarts
+and follow you into a fresh match, but they never start the next match — that
+is your decision. `COMPUTER_WORLDS` (default 96) sets how many imagined deals
+they search per move and `COMPUTER_DELAY_MS` (default 600) how long they pause
+before acting.
+
+The same players can be run outside the server, against any origin, while you
+build:
 
 ```bash
 pnpm local:players Bob Charlie
 ```
-
-They play legally from the same sanitised view a browser receives. This is a
-development aid — the game itself has no computer opponents.
-
-## The advisor
-
-Toggle **Advisor** in the top bar and the table shows your odds of surviving
-the match and which card to play, with what the alternatives cost you. The
-setting is remembered per browser.
-
-It runs in a Web Worker *in your browser*, from your own sanitised view. The
-hidden cards live on the server and are never sent, so the rule that advice
-may use nothing but your hand and the cards everyone has watched being played
-is enforced by what is physically in the process — not by good intentions.
-`STRATEGY.md` explains what it believes and how it was found.
-
-## Self-play
-
-Runs on worker threads — about 109,000 matches a second on twelve cores, or
-9µs a match.
-
-```bash
-pnpm self-play sanity                 # throughput
-pnpm self-play cem --budget 10000000  # cross-entropy search for a strategy
-pnpm self-play matrix                 # round robin between candidates
-pnpm self-play search --worlds 256    # does searching beat the heuristic?
-pnpm self-play oracle                 # what is hidden information worth?
-pnpm self-play endgame                # does exact endgame solving help?
-```
-
-The current strategy came from ten million matches of that search. What it
-found — and, just as usefully, what it failed to find — is in `STRATEGY.md`.
 
 ## Checks
 
@@ -148,5 +133,7 @@ docker compose --profile app up --build
 ```
 
 For Azure, the image is intended for Container Apps with Azure Database for
-PostgreSQL Flexible Server; set `DATABASE_URL`, `SESSION_SECRET` and
-`ADMIN_EMAIL`, and run `prisma db push` against the database once.
+PostgreSQL Flexible Server; set `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_EMAIL`
+and `WEB_ORIGIN` (the public HTTPS origin, used in invitation links), add
+`COMPUTER_PLAYERS=Bob,Charlie` for a table one person can play at, and run
+`prisma db push` against the database once.

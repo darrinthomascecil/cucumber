@@ -50,6 +50,9 @@ importers:
       '@cucumber/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@cucumber/strategy':
+        specifier: workspace:*
+        version: link:../../packages/strategy
       '@fastify/cookie':
         specifier: 11.0.2
         version: 11.0.2
