@@ -39,11 +39,16 @@ COMPUTER_PLAYERS=Bob,Charlie pnpm dev:server
 Bob and Charlie are ordinary players as far as the match is concerned: they
 receive the same sanitised view a browser receives, their moves pass the same
 version guard and action ledger, and they think with the same searched
-strategy as the in-game advisor. They are re-seated when the server restarts
-and follow you into a fresh match, but they never start the next match — that
-is your decision. `COMPUTER_WORLDS` (default 96) sets how many imagined deals
-they search per move and `COMPUTER_DELAY_MS` (default 600) how long they pause
-before acting.
+strategy as the in-game advisor. `COMPUTER_WORLDS` (default 96) sets how many
+imagined deals they search per move and `COMPUTER_DELAY_MS` (default 600) how
+long they pause before acting.
+
+With computer players there is no longer one room. A full table of people is
+smaller — one person, with two computer players — so each arrival is seated at
+the table they already have, or one with a seat left for a person, or a new
+one, and the computer players join them there. Any number of people can be
+playing them at once. They come back after a restart, follow you into a fresh
+match, and never start the next match — that is your decision.
 
 The same players can be run outside the server, against any origin, while you
 build:
@@ -137,3 +142,10 @@ PostgreSQL Flexible Server; set `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_EMAIL`
 and `WEB_ORIGIN` (the public HTTPS origin, used in invitation links), add
 `COMPUTER_PLAYERS=Bob,Charlie` for a table one person can play at, and run
 `prisma db push` against the database once.
+
+Behind Container Apps' built-in authentication, `TRUST_EASY_AUTH=1` makes the
+Microsoft sign-in the only door: whoever the platform says is signed in is
+given an account on first sight and seated, with no invitation. The platform
+strips those identity headers from outside requests; nothing else does, so the
+setting belongs only on a deployment that cannot be reached any other way.
+Disabling a user still keeps them out.

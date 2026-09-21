@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { PrismaClient } from '@cucumber/database'
-import type { PlayerView } from '@cucumber/shared'
-import { nextCommand } from '../helpers/clientPlayer.ts'
 import {
   ServerHandle,
   TestClient,
@@ -13,6 +11,7 @@ import {
   seedInvitee,
   testDb,
 } from '../helpers/server.ts'
+import { opponents, playAlone } from '../helpers/solo.ts'
 
 /**
  * One person, two computer players, a real server, a real database. The
@@ -50,38 +49,6 @@ async function alice(): Promise<{ cookie: string; client: TestClient }> {
   const cookie = await redeem(token)
   await joinRoom(cookie)
   return { cookie, client: await TestClient.connect(cookie) }
-}
-
-/** Play the one human seat until the table reaches the phase we want. */
-async function playAlone(
-  client: TestClient,
-  stop: (view: PlayerView) => boolean,
-  limit = 1200,
-): Promise<PlayerView> {
-  let lastVersion = -1
-  for (let step = 0; step < limit; step++) {
-    const view = client.view
-    if (view && stop(view)) return view
-    // Act once per position; a refused or overtaken move brings a new one.
-    if (view && view.version !== lastVersion) {
-      const command = nextCommand(view)
-      if (command) {
-        client.send(command)
-        lastVersion = view.version
-      }
-    }
-    await delay(50)
-  }
-  throw new Error(
-    `Never reached the target phase; last view: ${JSON.stringify(client.view)?.slice(0, 600)}`,
-  )
-}
-
-function opponents(view: PlayerView): string[] {
-  return view.players
-    .filter((player) => player.seat !== view.you.seat)
-    .map((player) => player.displayName)
-    .sort()
 }
 
 describe('computer players', () => {

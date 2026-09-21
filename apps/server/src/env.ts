@@ -52,6 +52,15 @@ export const env = {
    *  is an authentication bypass, so it is a development convenience only and
    *  the checks below refuse to let it boot anywhere it could matter. */
   devAutoSignIn: process.env.DEV_AUTO_SIGN_IN === '1',
+  /**
+   * Behind Azure's built-in authentication, the platform has already signed
+   * the visitor in with Microsoft and says who they are in request headers
+   * that outside callers cannot set. With this on, that identity is enough:
+   * no invitation, no second sign-in. It must never be on anywhere a request
+   * can reach the server without passing through that wall, because then the
+   * header is just a header.
+   */
+  trustEasyAuth: process.env.TRUST_EASY_AUTH === '1',
   /** Seats the server fills with its own players; empty means three people. */
   computerPlayers: parseComputerPlayers(process.env.COMPUTER_PLAYERS),
   computerWorlds: Number(process.env.COMPUTER_WORLDS ?? 96),

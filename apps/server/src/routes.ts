@@ -6,11 +6,13 @@ import {
   clearSession,
   createInvite,
   currentUser,
+  hasSession,
   issueSession,
   redeemInvite,
   requireAdmin,
   requireUser,
 } from './auth.ts'
+import { nudgeComputerPlayers } from './computerPlayers.ts'
 import { env } from './env.ts'
 import { joinRoom, roomFor, viewOf } from './matchService.ts'
 import { askAboutReview, type AskRequest } from './reviewChat.ts'
@@ -31,6 +33,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     // game needs neither an invitation nor a sign-in form.
     const user = (await currentUser(request)) ?? (await autoSignIn(reply))
     if (!user) return reply.code(401).send({ error: 'Not signed in.' })
+    // Recognised from the platform's sign-in rather than a session of ours:
+    // give them one, so the socket does not depend on headers surviving an
+    // upgrade request.
+    if (!hasSession(request)) issueSession(reply, user.id)
     return {
       id: user.id,
       email: user.email,
@@ -55,7 +61,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/room/join', async (request) => {
     const user = await requireUser(request)
-    return joinRoom(user.id)
+    const room = await joinRoom(user.id)
+    // Somebody may have just sat down at an empty table; don't make them wait
+    // for the computer players' next look round.
+    nudgeComputerPlayers()
+    return room
   })
 
   app.get('/api/room', async (request, reply) => {

@@ -7,7 +7,7 @@ import {
   viewFor,
   type EngineEvent,
 } from '@cucumber/game-engine'
-import { db, type Prisma } from '@cucumber/database'
+import { db, type MatchStatus, type Prisma } from '@cucumber/database'
 import type {
   ClientCommand,
   ConnectionStatus,
@@ -46,11 +46,31 @@ function toJson(state: MatchState): Prisma.InputJsonValue {
 }
 
 /**
+ * The server's own players. Seats are kept for them at every table, and a
+ * table is "full of people" once the remaining seats are taken.
+ */
+let computerUserIds: ReadonlySet<string> = new Set()
+
+export function reserveSeatsFor(userIds: Iterable<string>): void {
+  computerUserIds = new Set(userIds)
+}
+
+const OPEN = { status: { in: ['LOBBY', 'ACTIVE'] as MatchStatus[] } }
+const WITH_PLAYERS = { players: { include: { user: true } } } as const
+
+/**
  * V1 has a single private room (spec §36): one match in progress at a time,
  * with three fixed seats. A finished match stays available so the players can
  * start another without re-seating.
+ *
+ * That is still exactly what happens when three people play. When the server
+ * supplies players of its own, a full table of people is smaller — one person,
+ * if there are two computer players — so one room would mean one person could
+ * ever play. Instead each arrival is seated at the table they already have, or
+ * the oldest table with a seat left for a person, or a new one; the computer
+ * players join them there by naming the table they mean (`target`).
  */
-export async function joinRoom(userId: string): Promise<Room> {
+export async function joinRoom(userId: string, target?: { matchId: string }): Promise<Room> {
   return db().$transaction(async (tx) => {
     // Seating is read-then-write: find the open match, find a free seat, take
     // it. Two people arriving together both read the same free seat and the
@@ -59,11 +79,39 @@ export async function joinRoom(userId: string): Promise<Room> {
     // happens once per player per match and is never contended in play.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(9021, 1)`
 
-    const existing = await tx.match.findFirst({
-      where: { status: { in: ['LOBBY', 'ACTIVE'] } },
-      orderBy: { createdAt: 'asc' },
-      include: { players: { include: { user: true } } },
-    })
+    let existing
+    if (target) {
+      existing = await tx.match.findFirst({ where: { id: target.matchId, ...OPEN }, include: WITH_PLAYERS })
+      if (!existing) throw new NotSeatedError()
+    } else if (computerUserIds.size === 0) {
+      existing = await tx.match.findFirst({
+        where: OPEN,
+        orderBy: { createdAt: 'asc' },
+        include: WITH_PLAYERS,
+      })
+    } else {
+      // A computer player is always sent to a particular table.
+      if (computerUserIds.has(userId)) throw new NotSeatedError()
+      existing = await tx.match.findFirst({
+        where: { ...OPEN, players: { some: { userId } } },
+        orderBy: { createdAt: 'asc' },
+        include: WITH_PLAYERS,
+      })
+      if (!existing) {
+        const seatsForPeople = SEAT_NUMBERS.length - computerUserIds.size
+        const tables = await tx.match.findMany({
+          where: OPEN,
+          orderBy: { createdAt: 'asc' },
+          include: WITH_PLAYERS,
+        })
+        existing =
+          tables.find(
+            (table) =>
+              table.players.length < SEAT_NUMBERS.length &&
+              table.players.filter((player) => !computerUserIds.has(player.userId)).length < seatsForPeople,
+          ) ?? null
+      }
+    }
 
     let match = existing
     if (!match) {

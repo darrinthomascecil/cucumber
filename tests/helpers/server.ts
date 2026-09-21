@@ -133,8 +133,20 @@ export async function redeem(token: string): Promise<string> {
   return cookie.split(';')[0] as string
 }
 
-export async function joinRoom(cookie: string): Promise<Room> {
-  const response = await fetch(`${base}/api/room/join`, { method: 'POST', headers: { cookie } })
+/** What the platform's sign-in wall would put on a request for this person. */
+export function asPrincipal(name: string): Record<string, string> {
+  return { 'x-ms-client-principal-name': name }
+}
+
+/** A cookie string, or a whole set of headers for the sign-in wall's tests. */
+type Credentials = string | Record<string, string>
+
+function headersOf(credentials: Credentials): Record<string, string> {
+  return typeof credentials === 'string' ? { cookie: credentials } : credentials
+}
+
+export async function joinRoom(credentials: Credentials): Promise<Room> {
+  const response = await fetch(`${base}/api/room/join`, { method: 'POST', headers: headersOf(credentials) })
   if (!response.ok) throw new Error(`join failed: ${response.status} ${await response.text()}`)
   return (await response.json()) as Room
 }
@@ -146,12 +158,12 @@ export class TestClient {
   rejections: { code: string; reason: string }[] = []
   private socket: WebSocket
 
-  private constructor(socket: WebSocket, readonly cookie: string) {
+  private constructor(socket: WebSocket, readonly cookie: Credentials) {
     this.socket = socket
   }
 
-  static async connect(cookie: string): Promise<TestClient> {
-    const socket = new WebSocket(`ws://127.0.0.1:${TEST_PORT}/ws`, { headers: { cookie } })
+  static async connect(cookie: Credentials): Promise<TestClient> {
+    const socket = new WebSocket(`ws://127.0.0.1:${TEST_PORT}/ws`, { headers: headersOf(cookie) })
     const client = new TestClient(socket, cookie)
     await new Promise<void>((resolve, reject) => {
       socket.once('open', () => resolve())

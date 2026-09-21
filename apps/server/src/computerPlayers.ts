@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { db } from '@cucumber/database'
 import type { ClientCommand, ClientMessage, ServerMessage } from '@cucumber/shared'
 import { decideForSeat, type SeatMemory } from '@cucumber/strategy'
-import { NotSeatedError, joinRoom } from './matchService.ts'
+import { NotSeatedError, joinRoom, reserveSeatsFor } from './matchService.ts'
 import { registerClient, type ClientSocket } from './realtime.ts'
 
 /**
@@ -16,9 +16,10 @@ import { registerClient, type ClientSocket } from './realtime.ts'
  * The only difference is that the wire is an in-memory socket instead of a
  * network one. Nothing in the rules path knows or cares.
  *
- * They are meant for a table with one person at it. They fill whichever seats
- * are empty, sit through restarts (they are re-seated on boot), and follow a
- * person into a fresh match. They never start the next match themselves.
+ * They go wherever a person is: every open table with somebody at it gets the
+ * computer players in its spare seats, so any number of people can each be
+ * playing them at once. They come back after a restart, follow a person into a
+ * fresh match, and never start the next match themselves.
  */
 export interface ComputerPlayerOptions {
   /** Imagined deals per decision. */
@@ -67,63 +68,50 @@ class InProcessSocket extends EventEmitter implements ClientSocket {
   }
 }
 
-class ComputerPlayer {
-  readonly userId: string
+/** One computer player at one table. */
+class ComputerSeat {
   readonly name: string
+  private readonly userId: string
+  private readonly matchId: string
   private readonly index: number
   private readonly options: ComputerPlayerOptions
   private readonly log: Log
   private socket: InProcessSocket | null = null
-  private matchId: string | null = null
   private actedOn = -1
   private strikes = 0
   private memory: SeatMemory = { discarded: [] }
   private handNumber = 0
   private timer: NodeJS.Timeout | null = null
 
-  constructor(userId: string, name: string, index: number, options: ComputerPlayerOptions, log: Log) {
-    this.userId = userId
-    this.name = name
-    this.index = index
+  constructor(
+    user: ComputerUser,
+    matchId: string,
+    options: ComputerPlayerOptions,
+    log: Log,
+  ) {
+    this.name = user.name
+    this.userId = user.id
+    this.index = user.index
+    this.matchId = matchId
     this.options = options
     this.log = log
   }
 
-  /** Take a seat in the open match, if there is one to take. Idempotent. */
-  async seat(): Promise<boolean> {
-    let matchId: string
-    try {
-      matchId = (await joinRoom(this.userId)).matchId
-    } catch (error) {
-      if (error instanceof NotSeatedError) return false
-      throw error
-    }
-    if (this.socket && this.matchId === matchId) return true
-
-    this.leave()
-    this.matchId = matchId
+  /** Sit down at this table (or sit back down, after a restart). */
+  async attach(): Promise<void> {
+    await joinRoom(this.userId, { matchId: this.matchId })
     const socket = new InProcessSocket((message) => this.receive(message))
     this.socket = socket
-    await registerClient(socket, this.userId, matchId)
+    await registerClient(socket, this.userId, this.matchId)
     socket.push({ type: 'RESYNC' })
     this.log.info(`${this.name} sat down`)
-    return true
   }
 
-  isSeatedIn(matchId: string): boolean {
-    return this.socket !== null && this.matchId === matchId
-  }
-
-  leave(): void {
+  detach(): void {
     if (this.timer) clearTimeout(this.timer)
     this.timer = null
     this.socket?.close()
     this.socket = null
-    this.matchId = null
-    this.actedOn = -1
-    this.strikes = 0
-    this.memory = { discarded: [] }
-    this.handNumber = 0
   }
 
   private receive(message: ServerMessage): void {
@@ -181,13 +169,27 @@ class ComputerPlayer {
   }
 }
 
-/** Seats the named computer players and keeps them seated. Returns a stop. */
+interface ComputerUser {
+  id: string
+  name: string
+  index: number
+}
+
+/** Set once the computer players are running; a no-op until then. */
+let tend: (() => void) | null = null
+
+/** Ask the computer players to look round the tables now rather than soon. */
+export function nudgeComputerPlayers(): void {
+  tend?.()
+}
+
+/** Starts the named computer players. Returns a stop. */
 export async function startComputerPlayers(
   names: string[],
   options: ComputerPlayerOptions,
   log: Log,
 ): Promise<() => void> {
-  const players: ComputerPlayer[] = []
+  const users: ComputerUser[] = []
   for (const [index, name] of names.entries()) {
     const email = `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}@computer.local`
     const user = await db().user.upsert({
@@ -195,52 +197,81 @@ export async function startComputerPlayers(
       update: { displayName: name, status: 'ACTIVE', isAdmin: false, inviteHash: null },
       create: { email, displayName: name, status: 'ACTIVE', isAdmin: false },
     })
-    players.push(new ComputerPlayer(user.id, name, index, options, log))
+    users.push({ id: user.id, name, index })
   }
+  reserveSeatsFor(users.map((user) => user.id))
 
-  for (const player of players) {
-    if (!(await player.seat())) log.warn(`${player.name} found no free seat`)
+  // One entry per computer player per table, kept for the life of the process:
+  // a finished match still needs them the moment a person starts the next one.
+  const seats = new Map<string, ComputerSeat>()
+  const ids = new Set(users.map((user) => user.id))
+
+  /**
+   * Every open table with a person at it should have the computer players in
+   * its spare seats. That covers all three ways they come to be missing: a
+   * person has just sat down at a new table, the server has restarted, or a
+   * finished match has been started again after one.
+   */
+  const lookRound = async (): Promise<void> => {
+    const tables = await db().match.findMany({
+      where: { status: { in: ['LOBBY', 'ACTIVE'] } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, players: { select: { userId: true } } },
+    })
+    for (const table of tables) {
+      const people = table.players.filter((row) => !ids.has(row.userId)).length
+      let occupied = table.players.length
+      for (const user of users) {
+        const key = `${table.id}:${user.id}`
+        if (seats.has(key)) continue
+        const alreadySeated = table.players.some((row) => row.userId === user.id)
+        // Nobody to play with, or nowhere to sit.
+        if (!alreadySeated && (people === 0 || occupied >= 3)) continue
+        const seat = new ComputerSeat(user, table.id, options, log)
+        try {
+          await seat.attach()
+          seats.set(key, seat)
+          if (!alreadySeated) occupied += 1
+        } catch (error) {
+          seat.detach()
+          if (!(error instanceof NotSeatedError)) throw error
+        }
+      }
+    }
   }
 
   let busy = false
-  const timer = setInterval(() => {
-    if (busy) return
+  let again = false
+  const run = (): void => {
+    if (busy) {
+      again = true
+      return
+    }
     busy = true
-    void followThePerson(players).catch((error) => {
-      log.warn(`computer players could not check the table: ${(error as Error).message}`)
-    }).finally(() => {
-      busy = false
-    })
-  }, options.pollMs)
+    void lookRound()
+      .catch((error) => {
+        log.warn(`computer players could not look round the tables: ${(error as Error).message}`)
+      })
+      .finally(() => {
+        busy = false
+        if (again) {
+          again = false
+          run()
+        }
+      })
+  }
+
+  tend = run
+  const timer = setInterval(run, options.pollMs)
   timer.unref()
+  await lookRound()
+  log.info(`computer players ready: ${names.join(', ')}`)
 
   return () => {
     clearInterval(timer)
-    for (const player of players) player.leave()
-  }
-}
-
-/**
- * A finished match is left where it lies — starting the next one is a
- * person's decision. But a person who reloads after a match has ended is
- * dealt a brand new match, one the computer players were never part of. Follow
- * them into it.
- */
-async function followThePerson(players: ComputerPlayer[]): Promise<void> {
-  const open = await db().match.findFirst({
-    where: { status: { in: ['LOBBY', 'ACTIVE'] } },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true, players: { select: { userId: true } } },
-  })
-  if (!open) return
-  for (const player of players) {
-    if (player.isSeatedIn(open.id)) continue
-    if (open.players.some((row) => row.userId === player.userId)) {
-      // Seated in the database but not connected: a restart, or a match it
-      // was dealt into before it was running. Reconnect.
-      await player.seat()
-      continue
-    }
-    await player.seat()
+    tend = null
+    for (const seat of seats.values()) seat.detach()
+    seats.clear()
+    reserveSeatsFor([])
   }
 }
